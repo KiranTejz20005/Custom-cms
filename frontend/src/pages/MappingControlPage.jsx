@@ -824,6 +824,64 @@ const MappingControlPage = ({ mode }) => {
           background: #fee2e2;
           color: #ef4444;
         }
+
+        .audience-summary-card {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 24px;
+          margin-top: 32px;
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--border-color);
+        }
+
+        .summary-info {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+        }
+
+        .summary-info h3 {
+          margin: 0 0 4px 0;
+          font-size: 18px;
+          color: var(--text-main);
+        }
+
+        .summary-info p {
+          margin: 0;
+          color: var(--text-muted);
+          font-size: 14px;
+        }
+
+        .quick-rules {
+          display: flex;
+          gap: 16px;
+        }
+
+        .rule-item {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+          background: white;
+          padding: 10px 16px;
+          border-radius: 8px;
+          border: 1px solid var(--border-color);
+          min-width: 140px;
+        }
+
+        .rule-item label {
+          font-size: 11px;
+          text-transform: uppercase;
+          font-weight: 700;
+          color: var(--text-muted);
+          letter-spacing: 0.05em;
+        }
+
+        .rule-item span {
+          font-size: 14px;
+          font-weight: 600;
+          color: var(--text-main);
+        }
       ` }} />
     </Layout>
   );
