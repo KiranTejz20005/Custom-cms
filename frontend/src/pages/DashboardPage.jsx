@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { Plus, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Download } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import MappingTable from '../components/dashboard/MappingTable';
@@ -7,6 +7,8 @@ import { getMappings, deleteMapping } from '../services/api';
 
 const DashboardPage = () => {
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState([]);
     const [total, setTotal] = useState(0);
@@ -16,9 +18,28 @@ const DashboardPage = () => {
 
     const [filters, setFilters] = useState({
         search: '',
-        assetType: '',
+        assetType: searchParams.get('assetType') || '',
         status: ''
     });
+
+    // Update internal state if URL changes
+    useEffect(() => {
+        const urlType = searchParams.get('assetType') || '';
+        if (urlType !== filters.assetType) {
+            setFilters(prev => ({ ...prev, assetType: urlType }));
+        }
+    }, [searchParams]);
+
+    // Update URL if internal type changes
+    const handleAssetTypeChange = (e) => {
+        const val = e.target.value;
+        setFilters({ ...filters, assetType: val });
+        if (val) {
+            setSearchParams({ assetType: val });
+        } else {
+            setSearchParams({});
+        }
+    };
 
     const loadData = async () => {
         setLoading(true);
@@ -54,6 +75,11 @@ const DashboardPage = () => {
             // Client-side active filter
             if (filters.status === 'active') {
                 rows = rows.filter(r => r.is_active);
+            }
+
+            // Client-side asset type filter
+            if (filters.assetType) {
+                rows = rows.filter(r => r.content_type === filters.assetType);
             }
 
             setData(rows);
@@ -101,13 +127,6 @@ const DashboardPage = () => {
                         <h1>Mapped Assets</h1>
                         <p>Manage and monitor all course-to-audience assignments.</p>
                     </div>
-                    <button
-                        className="btn btn-primary"
-                        onClick={() => navigate('/admin/mappings/create')}
-                    >
-                        <Plus size={20} />
-                        <span>New Mapping</span>
-                    </button>
                 </header>
 
                 <section className="filter-bar animate-fade-in glass" style={{ animationDelay: '0.1s' }}>
@@ -117,7 +136,11 @@ const DashboardPage = () => {
                             type="text"
                             placeholder="Search assets, audience..."
                             value={filters.search}
-                            onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setFilters(prev => ({ ...prev, search: val }));
+                            }}
+                            onKeyUp={() => loadData()}
                         />
                     </form>
 
@@ -126,7 +149,7 @@ const DashboardPage = () => {
                             <Filter size={16} />
                             <select
                                 value={filters.assetType}
-                                onChange={(e) => setFilters({ ...filters, assetType: e.target.value })}
+                                onChange={handleAssetTypeChange}
                             >
                                 <option value="">All Asset Types</option>
                                 <option value="course">Courses</option>

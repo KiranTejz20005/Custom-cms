@@ -16,10 +16,10 @@ const Layout = ({ children, title }) => {
     {
       title: 'Assets',
       items: [
-        { name: 'Courses', icon: Book, path: '/admin/assets/courses' },
-        { name: 'Workshops', icon: Users, path: '/admin/assets/workshops' },
-        { name: 'Current Affairs', icon: Newspaper, path: '/admin/assets/current-affairs' },
-        { name: 'Motivation', icon: Heart, path: '/admin/assets/motivation' },
+        { name: 'Courses', icon: Book, path: '/admin/mappings/view?assetType=course' },
+        { name: 'Workshops', icon: Users, path: '/admin/mappings/view?assetType=workshop' },
+        { name: 'Current Affairs', icon: Newspaper, path: '/admin/mappings/view?assetType=current_affairs' },
+        { name: 'Motivation', icon: Heart, path: '/admin/mappings/view?assetType=motivation' },
       ]
     },
     {
@@ -46,17 +46,26 @@ const Layout = ({ children, title }) => {
             <div key={sIdx} className="nav-section">
               {section.title && <h3 className="nav-section-title">{section.title}</h3>}
               <div className="nav-section-items">
-                {section.items.map((item) => (
-                  <button
-                    key={item.path}
-                    className={`nav-item ${location.pathname.startsWith(item.path) ? 'active' : ''}`}
-                    onClick={() => navigate(item.path)}
-                  >
-                    <item.icon size={18} />
-                    <span>{item.name}</span>
-                    {location.pathname.startsWith(item.path) && <div className="active-indicator" />}
-                  </button>
-                ))}
+                {section.items.map((item) => {
+                  const currentFull = location.pathname + location.search;
+                  const isActive = item.path.includes('?')
+                    ? currentFull === item.path
+                    : item.path === '/admin/mappings/view'
+                      ? currentFull === '/admin/mappings/view'
+                      : location.pathname.startsWith(item.path);
+
+                  return (
+                    <button
+                      key={item.path}
+                      className={`nav-item ${isActive ? 'active' : ''}`}
+                      onClick={() => navigate(item.path)}
+                    >
+                      <item.icon size={18} />
+                      <span>{item.name}</span>
+                      {isActive && <div className="active-indicator" />}
+                    </button>
+                  )
+                })}
               </div>
             </div>
           ))}
