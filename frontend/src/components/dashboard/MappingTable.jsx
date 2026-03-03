@@ -1,0 +1,259 @@
+import React from 'react';
+import { Edit2, Trash2, Calendar, Eye, AlertTriangle, CheckCircle } from 'lucide-react';
+
+const MappingTable = ({ mappings, onEdit, onDelete }) => {
+  const getStatusBadge = (mapping) => {
+    const now = new Date();
+    if (mapping.expires_at && new Date(mapping.expires_at) < now) {
+      return <span className="badge badge-expired"><AlertTriangle size={12} /> Expired</span>;
+    }
+    if (mapping.starts_at && new Date(mapping.starts_at) > now) {
+      return <span className="badge badge-scheduled"><Calendar size={12} /> Scheduled</span>;
+    }
+    return <span className="badge badge-active"><CheckCircle size={12} /> Active</span>;
+  };
+
+  const getAudienceDisplay = (m) => {
+    if (!m) return 'Public';
+
+    let text = '';
+    if (m.type === 'school') {
+      text = 'School Assignment';
+    } else {
+      text = m.subscription_type ? (m.subscription_type.charAt(0).toUpperCase() + m.subscription_type.slice(1)) : 'All Users';
+    }
+
+    if (m.grade_ids && m.grade_ids.length > 0) {
+      text += ` • Grades ${Array.isArray(m.grade_ids) ? m.grade_ids.join(',') : m.grade_ids}`;
+    }
+
+    // Check both school and school_id for compatibility
+    const schoolVal = m.school_id || m.school;
+    if (schoolVal && schoolVal !== 0) {
+      text += ` • School ${typeof schoolVal === 'object' ? (schoolVal.name || schoolVal.id) : schoolVal}`;
+    }
+
+    return text;
+  };
+
+  return (
+    <div className="table-container">
+      <table className="data-table">
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Category</th>
+            <th>Audience</th>
+            <th>Users</th>
+            <th>Status</th>
+            <th className="actions-cell">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {mappings.length > 0 ? (
+            mappings.map((m) => (
+              <tr key={m.id}>
+                <td className="asset-cell">
+                  <div className="asset-info">
+                    <span className="asset-name">{m.content_title || 'Untitled'}</span>
+                    <span className="asset-id">ID: {m.content_id}</span>
+                  </div>
+                </td>
+                <td>
+                  <span className={`type-tag tag-${m.content_type}`}>
+                    {m.content_type}
+                  </span>
+                </td>
+                <td className="audience-cell text-muted">
+                  {getAudienceDisplay(m)}
+                </td>
+                <td className="user-count-cell">
+                  <span className="count-pill">{m.user_count || 0}</span>
+                </td>
+                <td>
+                  {getStatusBadge(m)}
+                </td>
+                <td className="actions-cell">
+                  <div className="action-buttons">
+                    <button className="icon-btn edit" title="Edit" onClick={() => onEdit(m.id)}>
+                      <Edit2 size={16} />
+                    </button>
+                    <button className="icon-btn delete" title="Delete" onClick={() => onDelete(m.id)}>
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))
+          ) : (
+            <tr>
+              <td colSpan="6" className="empty-row">
+                <div className="empty-state">
+                  <Eye size={40} className="empty-icon" />
+                  <h3>No mappings found</h3>
+                  <p>Try adjusting your search or filters to see more results.</p>
+                </div>
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        .table-container {
+          overflow-x: auto;
+          background: white;
+          border-radius: var(--radius-lg);
+          border: 1px solid var(--border-color);
+        }
+
+        .data-table {
+          width: 100%;
+          border-collapse: collapse;
+          text-align: left;
+        }
+
+        .data-table th {
+          padding: 16px 24px;
+          background: #f8fafc;
+          color: #64748b;
+          font-size: 13px;
+          font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          border-bottom: 1px solid var(--border-color);
+        }
+
+        .data-table td {
+          padding: 20px 24px;
+          border-bottom: 1px solid var(--border-color);
+          vertical-align: middle;
+        }
+
+        .data-table tr:hover {
+          background: #fefeff;
+        }
+
+        .asset-cell {
+          min-width: 250px;
+        }
+
+        .asset-info {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .asset-name {
+          font-weight: 600;
+          color: var(--text-main);
+          font-size: 15px;
+        }
+
+        .asset-id {
+          font-size: 12px;
+          color: var(--text-muted);
+        }
+
+        .type-tag {
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          padding: 4px 10px;
+          border-radius: 6px;
+        }
+
+        .tag-course { background: #eef2ff; color: #4f46e5; }
+        .tag-workshop { background: #fff7ed; color: #ea580c; }
+        .tag-book { background: #ecfdf5; color: #059669; }
+        .tag-byte { background: #fdf2f8; color: #db2777; }
+        .tag-category { background: #f5f3ff; color: #7c3aed; }
+
+        .audience-cell {
+          font-size: 14px;
+          max-width: 300px;
+        }
+
+        .text-muted { color: #64748b; }
+
+        .count-pill {
+          padding: 4px 12px;
+          background: #f1f5f9;
+          border-radius: 100px;
+          font-size: 13px;
+          font-weight: 600;
+          color: #1e293b;
+        }
+
+        .badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 6px 12px;
+          border-radius: 8px;
+          font-size: 12px;
+          font-weight: 600;
+        }
+
+        .badge-active { background: #d1fae5; color: #065f46; }
+        .badge-scheduled { background: #fef3c7; color: #92400e; }
+        .badge-expired { background: #fee2e2; color: #991b1b; }
+
+        .actions-cell {
+          width: 100px;
+          text-align: right;
+        }
+
+        .action-buttons {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+        }
+
+        .icon-btn {
+          padding: 8px;
+          border-radius: 8px;
+          background: transparent;
+          color: #94a3b8;
+          transition: var(--transition);
+        }
+
+        .icon-btn:hover {
+          background: #f1f5f9;
+        }
+
+        .icon-btn.edit:hover {
+          color: var(--primary);
+        }
+
+        .icon-btn.delete:hover {
+          color: var(--danger);
+        }
+
+        .empty-row {
+          padding: 80px 0;
+        }
+
+        .empty-state {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          color: var(--text-muted);
+        }
+
+        .empty-icon {
+          color: #cbd5e1;
+        }
+
+        .empty-state h3 {
+          margin: 0;
+          color: var(--text-main);
+        }
+      ` }} />
+    </div>
+  );
+};
+
+export default MappingTable;

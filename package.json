@@ -1,0 +1,11 @@
+{
+  "name": "lf-cmsss",
+  "private": true,
+  "description": "Custom CMS mapping admin - frontend + Xano",
+  "scripts": {
+    "dev": "npm run dev --prefix frontend",
+    "build": "npm run build --prefix frontend",
+    "preview": "npm run preview --prefix frontend",
+    "lint": "npm run lint --prefix frontend"
+  }
+}
