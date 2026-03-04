@@ -11,6 +11,7 @@ const MappingControlPage = ({ mode }) => {
   const { id } = useParams();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [metaWarning, setMetaWarning] = useState(null);
   const [success, setSuccess] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerType, setPickerType] = useState(null);
@@ -56,30 +57,50 @@ const MappingControlPage = ({ mode }) => {
   });
 
   useEffect(() => {
+    const fetchWithRetry = async (fn, retries = 3, delayMs = 800) => {
+      for (let i = 0; i < retries; i++) {
+        try {
+          return await fn();
+        } catch (err) {
+          if (i < retries - 1) {
+            await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+          } else {
+            throw err;
+          }
+        }
+      }
+    };
+
     const fetchInitialData = async () => {
+      let schoolsFailed = false;
+      let gradesFailed = false;
+
       try {
-        console.log("Fetching schools and grades...");
-        const [schoolsRes, gradesRes] = await Promise.all([
-          getSchools(),
-          getGrades()
-        ]);
-        console.log("Schools Raw:", schoolsRes);
-        console.log("Grades Raw:", gradesRes);
-
+        const schoolsRes = await fetchWithRetry(() => getSchools());
         const schoolData = Array.isArray(schoolsRes) ? schoolsRes : (schoolsRes.data || []);
-        const gradeData = Array.isArray(gradesRes) ? gradesRes : (gradesRes.data || []);
+        setSchools(schoolData);
+      } catch (err) {
+        console.error("Failed to fetch schools after retries:", err);
+        schoolsFailed = true;
+      }
 
+      try {
+        const gradesRes = await fetchWithRetry(() => getGrades());
+        const gradeData = Array.isArray(gradesRes) ? gradesRes : (gradesRes.data || []);
         const sortedGrades = [...gradeData].sort((a, b) => {
           const numA = parseInt(a.name?.replace(/\D/g, '') || a.id);
           const numB = parseInt(b.name?.replace(/\D/g, '') || b.id);
           return numA - numB;
         });
-
-        setSchools(schoolData);
         setGrades(sortedGrades);
       } catch (err) {
-        console.error("Failed to fetch prerequisite data", err);
-        setError("Failed to load schools or grades from Xano.");
+        console.error("Failed to fetch grades after retries:", err);
+        gradesFailed = true;
+      }
+
+      if (schoolsFailed || gradesFailed) {
+        const which = [schoolsFailed && 'schools', gradesFailed && 'grades'].filter(Boolean).join(' and ');
+        setMetaWarning(`Could not load ${which} from Xano. You can still map assets — retry or check your API connection.`);
       }
     };
     fetchInitialData();
@@ -192,6 +213,30 @@ const MappingControlPage = ({ mode }) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
 
+  const retryMeta = async () => {
+    setMetaWarning(null);
+    const fetchWithRetry = async (fn, retries = 3, delayMs = 800) => {
+      for (let i = 0; i < retries; i++) {
+        try { return await fn(); }
+        catch (err) {
+          if (i < retries - 1) await new Promise(r => setTimeout(r, delayMs * (i + 1)));
+          else throw err;
+        }
+      }
+    };
+    let warn = [];
+    try {
+      const sRes = await fetchWithRetry(() => getSchools());
+      setSchools(Array.isArray(sRes) ? sRes : (sRes.data || []));
+    } catch { warn.push('schools'); }
+    try {
+      const gRes = await fetchWithRetry(() => getGrades());
+      const gData = Array.isArray(gRes) ? gRes : (gRes.data || []);
+      setGrades([...gData].sort((a, b) => parseInt(a.name?.replace(/\D/g, '') || a.id) - parseInt(b.name?.replace(/\D/g, '') || b.id)));
+    } catch { warn.push('grades'); }
+    if (warn.length) setMetaWarning(`Still could not load ${warn.join(' and ')}. Check Xano API connection.`);
+  };
+
   const handleSubmit = async () => {
     if (formData.selectedAssets.length === 0) {
       setError("Please add at least one asset to map.");
@@ -213,15 +258,22 @@ const MappingControlPage = ({ mode }) => {
       'Categories': 'category'
     };
 
-    // Build one payload per asset, exactly matching the entitlement table
+    // 1. Fetch existing mappings to check for duplicates
+    let existingMappings = [];
+    try {
+      const resp = await getMappings({ limit: 1000 });
+      existingMappings = Array.isArray(resp) ? resp : (resp.items || resp.data || []);
+    } catch (err) {
+      console.warn("Failed to fetch existing mappings for duplicate check", err);
+    }
+
     const buildPayload = (asset) => {
       const contentType = typeMap[asset.type] || (asset.type || '').toLowerCase();
-      // subscription_type from Select User Group (userType), not Mapping Type
       const rawUserType = (formData.userType || '').toLowerCase();
       const isAllUserGroups = rawUserType === 'all' || formData.userType === 'All User Groups';
       const subscriptionType = isAllUserGroups
         ? undefined
-        : (rawUserType === 'school' || formData.userType === 'Select School' ? 'premium' : rawUserType);
+        : (rawUserType === 'school' ? 'premium' : rawUserType);
 
       const payload = {
         content_type: contentType,
@@ -240,16 +292,52 @@ const MappingControlPage = ({ mode }) => {
 
     try {
       const allPayloads = [];
+      const duplicates = [];
+
       formData.selectedAssets.forEach(asset => {
         const basePayload = buildPayload(asset);
-        if ((formData.assignmentMode === 'School' || formData.userType === 'School') && formData.schoolIds && formData.schoolIds.length > 0) {
-          formData.schoolIds.forEach(schoolId => {
-            allPayloads.push({ ...basePayload, school_id: schoolId });
+        const targetSchools = (formData.assignmentMode === 'School' || formData.userType === 'School') && formData.schoolIds?.length > 0
+          ? formData.schoolIds
+          : [0];
+
+        targetSchools.forEach(schoolId => {
+          const payload = { ...basePayload, school_id: Number(schoolId) };
+
+          // Check for duplicate locally
+          const isDuplicate = existingMappings.some(em => {
+            const emGrades = Array.isArray(em.grade_ids) ? em.grade_ids.map(Number) : (em.grade_id ? [Number(em.grade_id)] : []);
+            const payloadGrades = payload.grade_ids.map(Number);
+
+            // Match if same asset, same group, same school, and any grade overlap
+            const sameAsset = em.content_id === payload.content_id && (em.content_type || '').toLowerCase() === payload.content_type;
+            const sameGroup = (!em.subscription_type && !payload.subscription_type) || (em.subscription_type === payload.subscription_type);
+            const sameSchool = Number(em.school_id || 0) === Number(payload.school_id);
+            const gradeOverlap = payloadGrades.some(pg => emGrades.includes(pg));
+
+            return sameAsset && sameGroup && sameSchool && gradeOverlap;
           });
-        } else {
-          allPayloads.push({ ...basePayload, school_id: 0 });
-        }
+
+          if (isDuplicate) {
+            duplicates.push(`${asset.title || asset.name} (School ID: ${schoolId === 0 ? 'None' : schoolId})`);
+          } else {
+            allPayloads.push(payload);
+          }
+        });
       });
+
+      if (duplicates.length > 0) {
+        const proceed = window.confirm(`The following mappings already exist and will be skipped:\n\n${duplicates.join('\n')}\n\nDo you want to proceed with the remaining ${allPayloads.length} mapping(s)?`);
+        if (!proceed || allPayloads.length === 0) {
+          setSubmitting(false);
+          return;
+        }
+      }
+
+      if (allPayloads.length === 0) {
+        setError("All selected assets are already mapped for this configuration.");
+        setSubmitting(false);
+        return;
+      }
 
       const results = await Promise.allSettled(
         allPayloads.map(payload => createMapping(payload))
@@ -294,6 +382,14 @@ const MappingControlPage = ({ mode }) => {
             <button onClick={() => setError(null)}>×</button>
           </div>
         )}
+        {metaWarning && (
+          <div className="meta-warning-toast animate-slide-in">
+            <Info size={18} />
+            <span>{metaWarning}</span>
+            <button className="retry-meta-btn" onClick={retryMeta}>↺ Retry</button>
+            <button onClick={() => setMetaWarning(null)}>×</button>
+          </div>
+        )}
         <header className="mapping-header">
           <h1>Mapping</h1>
           <div className="header-actions">
@@ -307,7 +403,7 @@ const MappingControlPage = ({ mode }) => {
         <div className="mapping-grid">
           <section className="config-card glass">
             <div className="filter-group">
-              <label>Mapping Type</label>
+              <label className="filter-label">Mapping Type</label>
               <div className="custom-select">
                 <select value={formData.assignmentMode} onChange={(e) => setFormData({ ...formData, assignmentMode: e.target.value })}>
                   <option value="" disabled hidden>Select</option>
@@ -318,27 +414,27 @@ const MappingControlPage = ({ mode }) => {
               </div>
             </div>
             <div className="filter-group">
-              <label>User Type</label>
+              <label className="filter-label">Select User Group</label>
               <div className="custom-select">
                 <select
                   value={formData.userType}
-                  onChange={(e) => setFormData({ ...formData, userType: e.target.value })}
+                  onChange={(e) => setFormData({ ...formData, userType: e.target.value, schoolIds: [], gradeIds: [] })}
                   disabled={!formData.assignmentMode}
                 >
                   <option value="" disabled hidden>Select</option>
-                  <option value="all">All User Type</option>
-                  <option value="Premium">Premium Type</option>
-                  <option value="Ultra">Ultra Type</option>
-                  <option value="School">Schools Type</option>
+                  <option value="all">All User Groups</option>
+                  <option value="Premium">Premium</option>
+                  <option value="Ultra">Ultra</option>
+                  <option value="School">School</option>
                 </select>
                 <ChevronDown size={16} />
               </div>
             </div>
-            {(formData.assignmentMode === 'School' || formData.userType === 'School') && (
-              <div className="filter-group" ref={schoolDropdownRef}>
-                <label>Select Schools</label>
+            {(formData.assignmentMode === 'User' && formData.userType === 'School') && (
+              <div className="filter-group animate-slide-in" ref={schoolDropdownRef}>
+                <label className="filter-label">Select Schools</label>
                 <div
-                  className={`custom-select ${isSchoolDropdownOpen ? 'open' : ''} ${!formData.assignmentMode ? 'disabled' : ''}`}
+                  className={`custom-select ${isSchoolDropdownOpen ? 'open' : ''}`}
                   onClick={() => formData.assignmentMode && setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
                   style={{
                     cursor: formData.assignmentMode ? 'pointer' : 'not-allowed',
@@ -403,73 +499,75 @@ const MappingControlPage = ({ mode }) => {
                 )}
               </div>
             )}
-            <div className="filter-group" ref={gradeDropdownRef}>
-              <label>Select Grades</label>
-              <div
-                className={`custom-select ${isGradeDropdownOpen ? 'open' : ''} ${!formData.assignmentMode ? 'disabled' : ''}`}
-                onClick={() => formData.assignmentMode && setIsGradeDropdownOpen(!isGradeDropdownOpen)}
-                style={{
-                  cursor: formData.assignmentMode ? 'pointer' : 'not-allowed',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-md)',
-                  background: '#f8fafc',
-                  width: '100%',
-                  opacity: formData.assignmentMode ? 1 : 0.6
-                }}
-              >
-                <div style={{ padding: '12px 16px', width: '100%', fontSize: '15px' }}>
-                  {formData.gradeIds.length === 0
-                    ? 'Choose Grade...'
-                    : formData.gradeIds.length === grades.length && grades.length > 0
-                      ? 'All Grades'
-                      : `${formData.gradeIds.length} Grade(s) Selected`}
+            {(formData.userType !== '' && (formData.userType !== 'School' || (formData.schoolIds && formData.schoolIds.length > 0))) && (
+              <div className="filter-group animate-slide-in" ref={gradeDropdownRef}>
+                <label className="filter-label">Select Grades</label>
+                <div
+                  className={`custom-select ${isGradeDropdownOpen ? 'open' : ''}`}
+                  onClick={() => formData.assignmentMode && setIsGradeDropdownOpen(!isGradeDropdownOpen)}
+                  style={{
+                    cursor: formData.assignmentMode ? 'pointer' : 'not-allowed',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    background: '#f8fafc',
+                    width: '100%',
+                    opacity: formData.assignmentMode ? 1 : 0.6
+                  }}
+                >
+                  <div style={{ padding: '12px 16px', width: '100%', fontSize: '15px' }}>
+                    {formData.gradeIds.length === 0
+                      ? 'Choose Grade...'
+                      : formData.gradeIds.length === grades.length && grades.length > 0
+                        ? 'All Grades'
+                        : `${formData.gradeIds.length} Grade(s) Selected`}
+                  </div>
+                  <ChevronDown size={16} style={{
+                    position: 'absolute', right: '16px',
+                    transform: isGradeDropdownOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s',
+                    pointerEvents: 'none'
+                  }} />
                 </div>
-                <ChevronDown size={16} style={{
-                  position: 'absolute', right: '16px',
-                  transform: isGradeDropdownOpen ? 'rotate(180deg)' : 'none',
-                  transition: 'transform 0.2s',
-                  pointerEvents: 'none'
-                }} />
-              </div>
 
-              {isGradeDropdownOpen && (
-                <div className="custom-dropdown-menu animate-slide-in">
-                  <label className="dropdown-checkbox-item">
-                    <input
-                      type="checkbox"
-                      checked={formData.gradeIds.length === grades.length && grades.length > 0}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setFormData({ ...formData, gradeIds: grades.map(g => g.id) });
-                        } else {
-                          setFormData({ ...formData, gradeIds: [] });
-                        }
-                      }}
-                    />
-                    <span>Select All</span>
-                  </label>
-
-                  {grades.map(grade => (
-                    <label key={grade.id} className="dropdown-checkbox-item">
+                {isGradeDropdownOpen && (
+                  <div className="custom-dropdown-menu animate-slide-in">
+                    <label className="dropdown-checkbox-item">
                       <input
                         type="checkbox"
-                        checked={formData.gradeIds.includes(grade.id)}
+                        checked={formData.gradeIds.length === grades.length && grades.length > 0}
                         onChange={(e) => {
-                          const isChecked = e.target.checked;
-                          setFormData(prev => {
-                            const newGrades = isChecked
-                              ? [...prev.gradeIds, grade.id]
-                              : prev.gradeIds.filter(id => id !== grade.id);
-                            return { ...prev, gradeIds: newGrades };
-                          });
+                          if (e.target.checked) {
+                            setFormData({ ...formData, gradeIds: grades.map(g => g.id) });
+                          } else {
+                            setFormData({ ...formData, gradeIds: [] });
+                          }
                         }}
                       />
-                      <span>{grade.name?.toLowerCase().includes('grade') ? grade.name : `Grade ${grade.name || grade.id}`}</span>
+                      <span>Select All</span>
                     </label>
-                  ))}
-                </div>
-              )}
-            </div>
+
+                    {grades.map(grade => (
+                      <label key={grade.id} className="dropdown-checkbox-item">
+                        <input
+                          type="checkbox"
+                          checked={formData.gradeIds.includes(grade.id)}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setFormData(prev => {
+                              const newGrades = isChecked
+                                ? [...prev.gradeIds, grade.id]
+                                : prev.gradeIds.filter(id => id !== grade.id);
+                              return { ...prev, gradeIds: newGrades };
+                            });
+                          }}
+                        />
+                        <span>{grade.name?.toLowerCase().includes('grade') ? grade.name : `Grade ${grade.name || grade.id}`}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           <div className="asset-sections">
@@ -626,10 +724,14 @@ const MappingControlPage = ({ mode }) => {
           gap: 10px;
         }
 
-        .filter-group label {
-          font-size: 14px;
-          font-weight: 600;
-          color: var(--text-muted);
+        .filter-group label.filter-label {
+          font-size: 11px;
+          font-weight: 800;
+          color: #94a3b8;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          margin-bottom: 8px;
+          display: block;
         }
 
         .custom-select {
@@ -930,6 +1032,46 @@ const MappingControlPage = ({ mode }) => {
           color: #991b1b;
           font-size: 20px;
           font-weight: 700;
+        }
+
+        .meta-warning-toast {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          background: #fffbeb;
+          color: #92400e;
+          padding: 12px 20px;
+          border-radius: 8px;
+          border-left: 4px solid #f59e0b;
+          margin-bottom: 24px;
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.06);
+          font-size: 14px;
+        }
+
+        .meta-warning-toast button {
+          background: transparent;
+          color: #92400e;
+          font-size: 16px;
+          font-weight: 700;
+          border: none;
+          cursor: pointer;
+        }
+
+        .retry-meta-btn {
+          margin-left: auto;
+          background: #f59e0b !important;
+          color: white !important;
+          font-size: 13px !important;
+          font-weight: 700 !important;
+          padding: 4px 14px;
+          border-radius: 6px;
+          border: none;
+          cursor: pointer;
+          transition: background 0.2s;
+        }
+
+        .retry-meta-btn:hover {
+          background: #d97706 !important;
         }
 
         @keyframes slideIn {

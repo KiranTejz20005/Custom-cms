@@ -9,6 +9,7 @@ export const getGrades = () => client.get(members.getAllGrades);
 export const getSchools = () => client.get(members.getAllSchools);
 export const getUsers = () => client.get(members.getAllUsers);
 export const updateUser = (id, data) => client.post(members.updateUser(id), data);
+export const deleteUser = (id) => client.delete(members.deleteUser(id));
 export const getUserCount = (params) => client.get(members.countUsers, params);
 
 // Asset Endpoints (Courses Base)

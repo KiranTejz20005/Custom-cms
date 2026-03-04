@@ -122,10 +122,9 @@ const DashboardPage = () => {
                     const rType = (r.subscription_type || '').toLowerCase();
                     const fType = filters.userType.toLowerCase();
                     // Match 'all' or specific types like 'premium', 'ultra', 'school'
-                    if (fType === 'all') return rType === 'all';
-                    if (fType === 'premium') return rType === 'premium';
-                    if (fType === 'ultra') return rType === 'ultra';
-                    if (fType === 'school') return rType === 'school';
+                    if (fType === 'school') return Number(r.school_id || 0) !== 0 || rType === 'school';
+                    if (fType === 'premium') return rType === 'premium' && Number(r.school_id || 0) === 0;
+                    if (fType === 'ultra') return rType === 'ultra' && Number(r.school_id || 0) === 0;
                     return rType.includes(fType);
                 });
             }
