@@ -109,25 +109,25 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, onFilt
 
                     {(selectedFilters?.assignmentMode === 'School' || selectedFilters?.userType === 'School') && (
                         <div className="filter-field readonly">
-                            <label>Selected Schools</label>
+                            <label>Select Schools</label>
                             <div className="readonly-text">
                                 {selectedFilters.schoolIds?.length === 0
                                     ? 'None'
                                     : selectedFilters.schoolIds?.length === schools.length && schools.length > 0
                                         ? 'All Schools'
-                                        : `${selectedFilters.schoolIds?.length} School(s) selected`}
+                                        : `${selectedFilters.schoolIds?.length} School(s) Selected`}
                             </div>
                         </div>
                     )}
 
                     <div className="filter-field readonly">
-                        <label>Selected Grades</label>
+                        <label>Select Grades</label>
                         <div className="readonly-text">
                             {selectedFilters.gradeIds?.length === 0
                                 ? 'None'
                                 : selectedFilters.gradeIds?.length === grades.length && grades.length > 0
                                     ? 'All Grades'
-                                    : `${selectedFilters.gradeIds?.length} Grade(s) selected`}
+                                    : `${selectedFilters.gradeIds?.length} Grade(s) Selected`}
                         </div>
                     </div>
                 </div>
