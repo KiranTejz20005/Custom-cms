@@ -99,7 +99,7 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, onFilt
                     </div>
 
                     <div className="filter-field readonly">
-                        <label>Select User Group</label>
+                        <label>User Type</label>
                         <select value={selectedFilters?.userType || ''} disabled>
                             <option value="">Choose Audience...</option>
                             <option value="Premium">Premium</option>

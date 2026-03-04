@@ -9,10 +9,16 @@ const AudienceSelection = ({ data, updateData }) => {
     const [isGradeDropdownOpen, setIsGradeDropdownOpen] = useState(false);
     const gradeDropdownRef = useRef(null);
 
+    const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState(false);
+    const schoolDropdownRef = useRef(null);
+
     useEffect(() => {
         const handleClickOutside = (event) => {
             if (gradeDropdownRef.current && !gradeDropdownRef.current.contains(event.target)) {
                 setIsGradeDropdownOpen(false);
+            }
+            if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target)) {
+                setIsSchoolDropdownOpen(false);
             }
         };
         document.addEventListener("mousedown", handleClickOutside);
@@ -46,8 +52,8 @@ const AudienceSelection = ({ data, updateData }) => {
 
                 const res = await getUserCount({
                     user_type: userGroup,
-                    grade_id: data.gradeIds.join(','),
-                    school_id: data.schoolId
+                    grade_id: data.gradeIds?.join(',') || '',
+                    school_id: data.schoolIds?.join(',') || ''
                 });
 
                 // res is now the direct JSON body because of the new client.js
@@ -60,7 +66,7 @@ const AudienceSelection = ({ data, updateData }) => {
             }
         };
         updateCount();
-    }, [data.userType, data.gradeIds, data.schoolId]);
+    }, [data.userType, data.gradeIds, data.schoolIds]);
 
     const userTypes = [
         { value: 'all', label: 'All User Type' },
@@ -72,7 +78,7 @@ const AudienceSelection = ({ data, updateData }) => {
     return (
         <div className="step-content">
             <div className="form-group animate-fade-in">
-                <label>Select User</label>
+                <label>User Type</label>
                 <div className="select-wrapper">
                     <select
                         value={data.userType}
@@ -154,21 +160,66 @@ const AudienceSelection = ({ data, updateData }) => {
                             <p className="field-hint">Select one or more grades</p>
                         </div>
 
-                        <div className="form-group">
-                            <label>Select School</label>
-                            <div className="select-wrapper">
-                                <select
-                                    value={data.schoolId}
-                                    onChange={(e) => updateData({ schoolId: parseInt(e.target.value) })}
-                                    className="form-select"
-                                >
-                                    <option value="0">All Schools</option>
-                                    {schools.map(school => (
-                                        <option key={school.id} value={school.id}>{school.name}</option>
-                                    ))}
-                                </select>
-                                <ChevronDown className="select-icon" size={18} />
+                        <div className="form-group" ref={schoolDropdownRef}>
+                            <label>Select Schools</label>
+                            <div
+                                className={`custom-select \${isSchoolDropdownOpen ? 'open' : ''}`}
+                                onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
+                                style={{ cursor: 'pointer', border: '1px solid var(--border-color)', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'white', position: 'relative' }}
+                            >
+                                <div style={{ width: '100%', fontSize: '15px' }}>
+                                    {(!data.schoolIds || data.schoolIds.length === 0)
+                                        ? 'Choose School...'
+                                        : data.schoolIds.length === schools.length && schools.length > 0
+                                            ? 'All Schools'
+                                            : `\${data.schoolIds.length} School(s) Selected`}
+                                </div>
+                                <ChevronDown size={16} style={{
+                                    position: 'absolute', right: '16px', top: '50%',
+                                    transform: `translateY(-50%) \${isSchoolDropdownOpen ? 'rotate(180deg)' : 'none'}`,
+                                    transition: 'transform 0.2s',
+                                    pointerEvents: 'none'
+                                }} />
                             </div>
+
+                            {isSchoolDropdownOpen && (
+                                <div className="custom-dropdown-menu">
+                                    <label className="dropdown-checkbox-item">
+                                        <input
+                                            type="checkbox"
+                                            checked={data.schoolIds?.length === schools.length && schools.length > 0}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    updateData({ schoolIds: schools.map(s => s.id) });
+                                                } else {
+                                                    updateData({ schoolIds: [] });
+                                                }
+                                            }}
+                                        />
+                                        <span>Select All</span>
+                                    </label>
+
+                                    {schools.map(school => (
+                                        <label key={school.id} className="dropdown-checkbox-item">
+                                            <input
+                                                type="checkbox"
+                                                checked={data.schoolIds?.includes(school.id)}
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    let newSchools = [];
+                                                    if (isChecked) {
+                                                        newSchools = [...(data.schoolIds || []), school.id];
+                                                    } else {
+                                                        newSchools = (data.schoolIds || []).filter(id => id !== school.id);
+                                                    }
+                                                    updateData({ schoolIds: newSchools });
+                                                }}
+                                            />
+                                            <span>{school.name}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </>

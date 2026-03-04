@@ -26,10 +26,16 @@ const MappingControlPage = ({ mode }) => {
   const [isGradeDropdownOpen, setIsGradeDropdownOpen] = useState(false);
   const gradeDropdownRef = useRef(null);
 
+  const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState(false);
+  const schoolDropdownRef = useRef(null);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (gradeDropdownRef.current && !gradeDropdownRef.current.contains(event.target)) {
         setIsGradeDropdownOpen(false);
+      }
+      if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target)) {
+        setIsSchoolDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -39,13 +45,13 @@ const MappingControlPage = ({ mode }) => {
   const [formData, setFormData] = useState({
     userType: '',
     gradeIds: [],
-    schoolId: 0,
+    schoolIds: [],
     affectedUsersCount: 0,
     selectedAssets: [],
     accessType: 'immediate',
     startDate: null,
     expiryDate: null,
-    assignmentMode: 'add',
+    assignmentMode: '',
     notes: ''
   });
 
@@ -90,8 +96,8 @@ const MappingControlPage = ({ mode }) => {
           grade_id: formData.gradeIds?.[0] || null
         };
 
-        if (formData.schoolId && formData.schoolId > 0) {
-          params.school_id = formData.schoolId;
+        if (formData.schoolIds && formData.schoolIds.length > 0) {
+          params.school_id = formData.schoolIds.join(',');
         }
 
         const res = await getUserCount(params);
@@ -105,7 +111,7 @@ const MappingControlPage = ({ mode }) => {
       }
     };
     updateCount();
-  }, [formData.userType, formData.gradeIds, formData.schoolId]);
+  }, [formData.userType, formData.gradeIds, formData.schoolIds]);
 
   useEffect(() => {
     if (mode === 'edit' && id) {
@@ -161,8 +167,8 @@ const MappingControlPage = ({ mode }) => {
       setError("Please select a Mapping Type first.");
       return;
     }
-    if (formData.userType === 'School' && !formData.schoolId) {
-      setError("Please select a School first.");
+    if ((formData.userType === 'School' || formData.assignmentMode === 'School') && (!formData.schoolIds || formData.schoolIds.length === 0)) {
+      setError("Please select at least one School first.");
       return;
     }
     if (!formData.gradeIds || formData.gradeIds.length === 0) {
@@ -214,7 +220,6 @@ const MappingControlPage = ({ mode }) => {
         content_id: asset.id,
         content_title: asset.title || asset.name || '',
         grade_ids: formData.gradeIds && formData.gradeIds.length > 0 ? formData.gradeIds : [],
-        school_id: formData.assignmentMode === 'School' ? (formData.schoolId || 0) : 0,
         is_active: true,
         assigned_by: 1,
       };
@@ -225,8 +230,20 @@ const MappingControlPage = ({ mode }) => {
     };
 
     try {
+      const allPayloads = [];
+      formData.selectedAssets.forEach(asset => {
+        const basePayload = buildPayload(asset);
+        if ((formData.assignmentMode === 'School' || formData.userType === 'School') && formData.schoolIds && formData.schoolIds.length > 0) {
+          formData.schoolIds.forEach(schoolId => {
+            allPayloads.push({ ...basePayload, school_id: schoolId });
+          });
+        } else {
+          allPayloads.push({ ...basePayload, school_id: 0 });
+        }
+      });
+
       const results = await Promise.allSettled(
-        formData.selectedAssets.map(asset => createMapping(buildPayload(asset)))
+        allPayloads.map(payload => createMapping(payload))
       );
 
       const failed = results.filter(r => r.status === 'rejected');
@@ -292,7 +309,7 @@ const MappingControlPage = ({ mode }) => {
               </div>
             </div>
             <div className="filter-group">
-              <label>Select User</label>
+              <label>User Type</label>
               <div className="custom-select">
                 <select value={formData.userType} onChange={(e) => setFormData({ ...formData, userType: e.target.value })}>
                   <option value="" disabled hidden>Select</option>
@@ -305,20 +322,65 @@ const MappingControlPage = ({ mode }) => {
               </div>
             </div>
             {(formData.assignmentMode === 'School' || formData.userType === 'School') && (
-              <div className="filter-group animate-slide-in">
-                <label>Select School</label>
-                <div className="custom-select">
-                  <select
-                    value={formData.schoolId || ''}
-                    onChange={(e) => setFormData({ ...formData, schoolId: parseInt(e.target.value) })}
-                  >
-                    <option value="" disabled hidden>Choose School...</option>
-                    {schools.map(school => (
-                      <option key={school.id} value={school.id}>{school.name}</option>
-                    ))}
-                  </select>
-                  <ChevronDown size={16} />
+              <div className="filter-group" ref={schoolDropdownRef}>
+                <label>Select Schools</label>
+                <div
+                  className={`custom-select \${isSchoolDropdownOpen ? 'open' : ''}`}
+                  onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
+                  style={{ cursor: 'pointer', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', background: '#f8fafc', width: '100%' }}
+                >
+                  <div style={{ padding: '12px 16px', width: '100%', fontSize: '15px' }}>
+                    {formData.schoolIds?.length === 0
+                      ? 'Choose School...'
+                      : formData.schoolIds?.length === schools.length && schools.length > 0
+                        ? 'All Schools'
+                        : `\${formData.schoolIds?.length} School(s) Selected`}
+                  </div>
+                  <ChevronDown size={16} style={{
+                    position: 'absolute', right: '16px',
+                    transform: isSchoolDropdownOpen ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 0.2s',
+                    pointerEvents: 'none'
+                  }} />
                 </div>
+
+                {isSchoolDropdownOpen && (
+                  <div className="custom-dropdown-menu animate-slide-in">
+                    <label className="dropdown-checkbox-item">
+                      <input
+                        type="checkbox"
+                        checked={formData.schoolIds?.length === schools.length && schools.length > 0}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData({ ...formData, schoolIds: schools.map(s => s.id) });
+                          } else {
+                            setFormData({ ...formData, schoolIds: [] });
+                          }
+                        }}
+                      />
+                      <span>Select All</span>
+                    </label>
+
+                    {schools.map(school => (
+                      <label key={school.id} className="dropdown-checkbox-item">
+                        <input
+                          type="checkbox"
+                          checked={formData.schoolIds?.includes(school.id)}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setFormData(prev => {
+                              const newSchools = isChecked
+                                ? [...(prev.schoolIds || []), school.id]
+                                : (prev.schoolIds || []).filter(id => id !== school.id);
+                              return { ...prev, schoolIds: newSchools };
+                            });
+                          }}
+                        />
+                        <span>{school.name}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
             <div className="filter-group" ref={gradeDropdownRef}>
