@@ -145,6 +145,8 @@ const DashboardPage = () => {
         return [...new Set(ids)];
     };
 
+    const isSchoolUserType = String(filters.userType || '').toLowerCase() === 'school';
+
     const loadData = async () => {
         setLoading(true);
         setFetchError(null);
@@ -216,7 +218,7 @@ const DashboardPage = () => {
             }
 
             // School Filter
-            if (filters.schoolIds.length > 0) {
+            if (isSchoolUserType && filters.schoolIds.length > 0) {
                 const selectedSchoolIds = [...new Set(filters.schoolIds.map(Number).filter(Number.isFinite))];
                 rows = rows.filter(r => {
                     const rowSchoolIds = getRowSchoolIds(r);
@@ -326,7 +328,18 @@ const DashboardPage = () => {
                             <Users size={16} />
                             <select
                                 value={filters.userType}
-                                onChange={(e) => setFilters({ ...filters, userType: e.target.value })}
+                                onChange={(e) => {
+                                    const nextUserType = e.target.value;
+                                    const shouldShowSchoolDropdown = String(nextUserType || '').toLowerCase() === 'school';
+                                    setFilters({
+                                        ...filters,
+                                        userType: nextUserType,
+                                        schoolIds: shouldShowSchoolDropdown ? filters.schoolIds : []
+                                    });
+                                    if (!shouldShowSchoolDropdown) {
+                                        setIsSchoolDropdownOpen(false);
+                                    }
+                                }}
                             >
                                 <option value="">User Type</option>
                                 <option value="all">All User Type</option>
@@ -335,6 +348,54 @@ const DashboardPage = () => {
                                 <option value="School">Schools Type</option>
                             </select>
                         </div>
+
+                        {/* School Dropdown */}
+                        {isSchoolUserType && (
+                            <div className="filter-item glass dropdown-container" ref={schoolDropdownRef}>
+                                <div className="dropdown-trigger" onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}>
+                                    <School size={14} />
+                                    <span>{filters.schoolIds.length === 0 ? 'Select School' : `${filters.schoolIds.length} Schools`}</span>
+                                    <ChevronDown size={14} />
+                                </div>
+                                {isSchoolDropdownOpen && (
+                                    <div className="paged-dropdown-menu">
+                                        <label className="menu-item-check all-option">
+                                            <input
+                                                type="checkbox"
+                                                checked={filters.schoolIds.length === schools.length && schools.length > 0}
+                                                onChange={(e) => {
+                                                    setFilters({
+                                                        ...filters,
+                                                        schoolIds: e.target.checked ? schools.map(s => s.id) : []
+                                                    });
+                                                }}
+                                            />
+                                            <span>Select All</span>
+                                        </label>
+                                        <div className="dropdown-divider"></div>
+                                        <div className="dropdown-options-list">
+                                            {schools.map(s => (
+                                                <label key={s.id} className="menu-item-check">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={filters.schoolIds.map(Number).includes(Number(s.id))}
+                                                        onChange={(e) => {
+                                                            const cur = [...new Set(filters.schoolIds.map(Number).filter(Number.isFinite))];
+                                                            const schoolId = Number(s.id);
+                                                            setFilters({
+                                                                ...filters,
+                                                                schoolIds: e.target.checked ? [...cur, schoolId] : cur.filter(id => id !== schoolId)
+                                                            });
+                                                        }}
+                                                    />
+                                                    <span>{s.name}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         {/* Grade Dropdown */}
                         <div className="filter-item glass dropdown-container" ref={gradeDropdownRef}>
@@ -374,52 +435,6 @@ const DashboardPage = () => {
                                                     }}
                                                 />
                                                 <span>{g.name}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {/* School Dropdown */}
-                        <div className="filter-item glass dropdown-container" ref={schoolDropdownRef}>
-                            <div className="dropdown-trigger" onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}>
-                                <School size={14} />
-                                <span>{filters.schoolIds.length === 0 ? 'All Schools' : `${filters.schoolIds.length} Schools`}</span>
-                                <ChevronDown size={14} />
-                            </div>
-                            {isSchoolDropdownOpen && (
-                                <div className="paged-dropdown-menu">
-                                    <label className="menu-item-check all-option">
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.schoolIds.length === schools.length && schools.length > 0}
-                                            onChange={(e) => {
-                                                setFilters({
-                                                    ...filters,
-                                                    schoolIds: e.target.checked ? schools.map(s => s.id) : []
-                                                });
-                                            }}
-                                        />
-                                        <span>Select All</span>
-                                    </label>
-                                    <div className="dropdown-divider"></div>
-                                    <div className="dropdown-options-list">
-                                        {schools.map(s => (
-                                            <label key={s.id} className="menu-item-check">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={filters.schoolIds.map(Number).includes(Number(s.id))}
-                                                    onChange={(e) => {
-                                                        const cur = [...new Set(filters.schoolIds.map(Number).filter(Number.isFinite))];
-                                                        const schoolId = Number(s.id);
-                                                        setFilters({
-                                                            ...filters,
-                                                            schoolIds: e.target.checked ? [...cur, schoolId] : cur.filter(id => id !== schoolId)
-                                                        });
-                                                    }}
-                                                />
-                                                <span>{s.name}</span>
                                             </label>
                                         ))}
                                     </div>
