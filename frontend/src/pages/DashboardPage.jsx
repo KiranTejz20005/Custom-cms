@@ -98,6 +98,37 @@ const DashboardPage = () => {
         return map[normalized] || normalized;
     };
 
+    const normalizeId = (value) => {
+        if (value == null) return null;
+        if (typeof value === 'object') {
+            const nested = value.id ?? value.school_id ?? null;
+            const nestedNum = Number(nested);
+            return Number.isFinite(nestedNum) && nestedNum > 0 ? nestedNum : null;
+        }
+        const numeric = Number(value);
+        return Number.isFinite(numeric) && numeric > 0 ? numeric : null;
+    };
+
+    const getRowSchoolIds = (row) => {
+        if (!row) return [];
+        const ids = [];
+
+        if (Array.isArray(row.school_ids)) {
+            row.school_ids.forEach((item) => {
+                const parsed = normalizeId(item);
+                if (parsed != null) ids.push(parsed);
+            });
+        }
+
+        const singleSchoolId = normalizeId(row.school_id);
+        if (singleSchoolId != null) ids.push(singleSchoolId);
+
+        const schoolFromRef = normalizeId(row.school);
+        if (schoolFromRef != null) ids.push(schoolFromRef);
+
+        return [...new Set(ids)];
+    };
+
     const loadData = async () => {
         setLoading(true);
         setFetchError(null);
@@ -117,6 +148,9 @@ const DashboardPage = () => {
             } else if (Array.isArray(res?.data)) {
                 rows = res.data;
             }
+
+            // Categories are helper selections, not standalone mappings in dashboard.
+            rows = rows.filter(r => normalizeContentType(r.content_type || r.category) !== 'category');
 
             // Client-side search filter if search term provided
             if (filters.search) {
@@ -147,10 +181,11 @@ const DashboardPage = () => {
                 rows = rows.filter(r => {
                     const rType = (r.subscription_type || '').toLowerCase();
                     const fType = filters.userType.toLowerCase();
+                    const rowSchoolIds = getRowSchoolIds(r);
                     // Match 'all' or specific types like 'premium', 'ultra', 'school'
-                    if (fType === 'school') return Number(r.school_id || 0) !== 0 || rType === 'school';
-                    if (fType === 'premium') return rType === 'premium' && Number(r.school_id || 0) === 0;
-                    if (fType === 'ultra') return rType === 'ultra' && Number(r.school_id || 0) === 0;
+                    if (fType === 'school') return rowSchoolIds.length > 0 || rType === 'school';
+                    if (fType === 'premium') return rType === 'premium' && rowSchoolIds.length === 0;
+                    if (fType === 'ultra') return rType === 'ultra' && rowSchoolIds.length === 0;
                     return rType.includes(fType);
                 });
             }
@@ -166,10 +201,10 @@ const DashboardPage = () => {
 
             // School Filter
             if (filters.schoolIds.length > 0) {
+                const selectedSchoolIds = [...new Set(filters.schoolIds.map(Number).filter(Number.isFinite))];
                 rows = rows.filter(r => {
-                    // Check both school_ids (array) and school_id (single)
-                    const rSchools = Array.isArray(r.school_ids) ? r.school_ids.map(Number) : (r.school_id ? [Number(r.school_id)] : []);
-                    return filters.schoolIds.some(id => rSchools.includes(Number(id)));
+                    const rowSchoolIds = getRowSchoolIds(r);
+                    return selectedSchoolIds.some(id => rowSchoolIds.includes(id));
                 });
             }
 
@@ -267,7 +302,6 @@ const DashboardPage = () => {
                                     <option value="workshop">Workshops</option>
                                     <option value="book">Books</option>
                                     <option value="byte">Bytes</option>
-                                    <option value="category">Categories</option>
                                 </select>
                             </div>
                         )}
@@ -359,12 +393,13 @@ const DashboardPage = () => {
                                             <label key={s.id} className="menu-item-check">
                                                 <input
                                                     type="checkbox"
-                                                    checked={filters.schoolIds.includes(s.id)}
+                                                    checked={filters.schoolIds.map(Number).includes(Number(s.id))}
                                                     onChange={(e) => {
-                                                        const cur = filters.schoolIds;
+                                                        const cur = [...new Set(filters.schoolIds.map(Number).filter(Number.isFinite))];
+                                                        const schoolId = Number(s.id);
                                                         setFilters({
                                                             ...filters,
-                                                            schoolIds: e.target.checked ? [...cur, s.id] : cur.filter(id => id !== s.id)
+                                                            schoolIds: e.target.checked ? [...cur, schoolId] : cur.filter(id => id !== schoolId)
                                                         });
                                                     }}
                                                 />
@@ -477,7 +512,7 @@ const DashboardPage = () => {
                 title="Confirm Delete"
             >
                 <div className="confirm-delete-content">
-                    <p>Are you sure you want to delete this mapping?</p>
+                    <p>Are you sure you want to delete this mapping? This cannot be undone.</p>
                     <p className="target-name">{deleteModal.title}</p>
                     <div className="confirm-delete-actions">
                         <button

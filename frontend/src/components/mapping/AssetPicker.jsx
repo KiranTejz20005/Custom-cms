@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Loader2 } from 'lucide-react';
-import { getCourses, getWorkshops, getCategories, getByteCategories, getBooks } from '../../services/api';
+import { getCourses, getWorkshops, getByteCategories, getBooks } from '../../services/api';
 
 const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, schools = [], grades = [] }) => {
     const [assets, setAssets] = useState([]);
@@ -20,35 +20,21 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                         break;
                     }
                     case 'Categories': {
-                        let categoriesData = [];
-                        try {
-                            const categoriesRes = await getCategories();
-                            categoriesData = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes.items || categoriesRes.data || []);
-                        } catch (_) {
-                            categoriesData = [];
-                        }
-
-                        if (categoriesData.length > 0) {
-                            const uniqueByName = new Map();
-                            categoriesData.forEach((cat) => {
-                                const label = cat?.name || cat?.title || cat?.category;
-                                if (!label) return;
-                                if (!uniqueByName.has(label)) {
-                                    uniqueByName.set(label, {
-                                        id: cat?.id ?? label,
-                                        title: label,
-                                        category: 'Course Categories',
-                                        category_name: label,
-                                    });
-                                }
-                            });
-                            res = Array.from(uniqueByName.values());
-                        } else {
-                            const coursesRes = await getCourses();
-                            const coursesData = Array.isArray(coursesRes) ? coursesRes : (coursesRes.data || []);
-                            const uniqueCats = [...new Set(coursesData.map(c => c.category).filter(Boolean))];
-                            res = uniqueCats.map(cat => ({ id: cat, title: cat, category: 'Course Categories', category_name: cat }));
-                        }
+                        const coursesRes = await getCourses();
+                        const coursesData = Array.isArray(coursesRes) ? coursesRes : (coursesRes.data || []);
+                        const catMap = {};
+                        coursesData.forEach(c => {
+                            if (c.category && !catMap[c.category]) {
+                                catMap[c.category] = c;
+                            }
+                        });
+                        res = Object.keys(catMap).map(catName => ({
+                            id: catMap[catName].id,
+                            title: catName,
+                            category: catName,
+                            category_name: catName,
+                            content_type: 'category'
+                        }));
                         break;
                     }
                     case 'Bytes': res = await getByteCategories(); break;
@@ -198,7 +184,7 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                     <div className={`wm-groups ${type === 'Courses' ? 'wm-groups-courses' : ''}`}>
                         {groupKeys.map(groupName => (
                             <div key={groupName} className="wm-group">
-                                {(type === 'Courses' || groupKeys.length > 1) && (
+                                {(type === 'Courses' || (type !== 'Categories' && groupKeys.length > 1)) && (
                                     <p className="wm-group-title">{groupName}</p>
                                 )}
                                 <div className="wm-items">

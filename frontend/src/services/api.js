@@ -23,7 +23,7 @@ export const getCategories = () => client.get(courses.getAllCategories);
 export const getMappings = (params) => client.get(courses.getMappings, params);
 export const getMappingById = (id) => client.get(courses.getMapping(id));
 export const createMapping = (data) => client.post(courses.upsertEntitlement, data);
-export const updateMapping = (id, data) => client.patch(courses.updateMapping(id), data);
+export const updateMapping = (id, data) => client.post(courses.updateMapping(id), data);
 export const deleteMapping = (id) => client.delete(courses.deleteMapping(id));
 
 // Default export as courses base (legacy compatibility)

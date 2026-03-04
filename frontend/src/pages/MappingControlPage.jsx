@@ -11,6 +11,7 @@ const MappingControlPage = ({ mode }) => {
   const { id } = useParams();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [warningToast, setWarningToast] = useState(null);
   const [metaWarning, setMetaWarning] = useState(null);
   const [success, setSuccess] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -19,6 +20,7 @@ const MappingControlPage = ({ mode }) => {
   const [schools, setSchools] = useState([]);
   const [grades, setGrades] = useState([]);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
+  const [duplicateModalMessage, setDuplicateModalMessage] = useState('');
   const [expandedSections, setExpandedSections] = useState({
     categories: true,
     courses: true,
@@ -238,6 +240,12 @@ const MappingControlPage = ({ mode }) => {
     if (warn.length) setMetaWarning(`Still could not load ${warn.join(' and ')}. Check Xano API connection.`);
   };
 
+  useEffect(() => {
+    if (!warningToast) return undefined;
+    const timeout = setTimeout(() => setWarningToast(null), 5000);
+    return () => clearTimeout(timeout);
+  }, [warningToast]);
+
   const handleSubmit = async () => {
     if (formData.selectedAssets.length === 0) {
       setError("Please add at least one asset to map.");
@@ -260,6 +268,7 @@ const MappingControlPage = ({ mode }) => {
     };
 
     const allowedContentTypes = new Set(['course', 'workshop', 'book', 'byte', 'category']);
+    const allowedSubscriptionTypes = new Set(['basic', 'premium', 'ultra']);
 
     const normalizeGradeIds = (gradeIds) => {
       if (Array.isArray(gradeIds)) {
@@ -273,9 +282,7 @@ const MappingControlPage = ({ mode }) => {
     const normalizeContentId = (raw) => {
       if (raw == null) return null;
       const asString = String(raw).trim();
-      if (!asString) return null;
-      const asNumber = Number(asString);
-      return Number.isFinite(asNumber) ? asNumber : asString;
+      return asString || null;
     };
 
     const comparableContentId = (raw) => {
@@ -283,16 +290,29 @@ const MappingControlPage = ({ mode }) => {
       return normalized == null ? '' : String(normalized);
     };
 
-    const areArraysEqual = (a, b) => a.length === b.length && a.every((value, index) => value === b[index]);
+    const normalizeSchoolId = (raw) => {
+      if (raw == null) return 0;
+      if (typeof raw === 'object') {
+        const nested = raw.id ?? raw.school_id ?? 0;
+        const asNumber = Number(nested);
+        return Number.isFinite(asNumber) ? asNumber : 0;
+      }
+      const asNumber = Number(raw);
+      return Number.isFinite(asNumber) ? asNumber : 0;
+    };
+
+    const normalizeComparableCategory = (raw) => String(raw || '').trim().toLowerCase();
+
+    const normalizeGradesComparable = (gradeIds) => normalizeGradeIds(gradeIds).join(',');
 
     let existingMappings = [];
     try {
-      const resp = await getMappings({ limit: 1000 });
+      const resp = await getMappings();
       existingMappings = Array.isArray(resp) ? resp : (resp.items || resp.data || []);
     } catch (err) {
-      setError('Unable to validate duplicates right now. Please retry.');
-      setSubmitting(false);
-      return;
+      console.warn('Duplicate validation fetch failed. Proceeding with local dedupe only.', err);
+      setWarningToast('Duplicate validation is temporarily unavailable. Proceeding with local checks.');
+      existingMappings = [];
     }
 
     const buildPayload = (asset) => {
@@ -308,37 +328,53 @@ const MappingControlPage = ({ mode }) => {
 
       const rawUserType = (formData.userType || '').toLowerCase();
       const isAllUserGroups = rawUserType === 'all' || formData.userType === 'All User Groups';
-      const subscriptionType = isAllUserGroups
+      let subscriptionType = isAllUserGroups
         ? null
         : (rawUserType === 'school' ? 'premium' : rawUserType);
 
-      const normalizedGradeIds = normalizeGradeIds(formData.gradeIds);
+      if (subscriptionType && !allowedSubscriptionTypes.has(subscriptionType)) {
+        console.warn('Invalid subscription_type derived from formData.userType:', {
+          userType: formData.userType,
+          derived: subscriptionType,
+          assetType: asset.type,
+          assetCategory: asset.category,
+          assetTitle: asset.title || asset.name,
+        });
+        subscriptionType = null;
+      }
 
       const payload = {
         content_type: contentType,
-        content_id: contentId,
+        content_id: String(asset.id),
         content_title: asset.title || asset.name || '',
-        grade_ids: normalizedGradeIds,
+        grade_ids: formData.gradeIds?.length > 0 ? formData.gradeIds : [],
         is_active: true,
         assigned_by: 1,
+        category: asset.category || '',
+        ...(subscriptionType ? { subscription_type: subscriptionType } : {}),
       };
-      if (subscriptionType != null && subscriptionType !== '') {
-        payload.subscription_type = subscriptionType;
-      }
 
       console.log('Payload:', JSON.stringify({
         ...payload,
         _asset_type: asset.type || null,
         _asset_category: asset.category ?? null,
       }));
+      console.log('Full payload before send:', JSON.stringify(payload));
 
       return payload;
     };
 
     try {
       const allPayloads = [];
+      const mappableAssets = formData.selectedAssets.filter(asset => asset.type === 'Courses' || asset.type === 'Workshops');
 
-      formData.selectedAssets.forEach(asset => {
+      if (mappableAssets.length === 0) {
+        setError('Please add at least one Course or Workshop to map.');
+        setSubmitting(false);
+        return;
+      }
+
+      mappableAssets.forEach(asset => {
         const basePayload = buildPayload(asset);
         const targetSchools = formData.userType === 'School' && formData.schoolIds?.length > 0
           ? formData.schoolIds
@@ -375,41 +411,73 @@ const MappingControlPage = ({ mode }) => {
         }
       });
 
-      const duplicateExists = dedupedPayloads.some((payload) => {
-        const payloadGrades = normalizeGradeIds(payload.grade_ids);
-        const payloadContentId = comparableContentId(payload.content_id);
-        return existingMappings.some((existing) => {
+      const isSameAudience = (existing, payload) => {
+        const existingSchool = normalizeSchoolId(existing.school ?? existing.school_id);
+        const payloadSchool = normalizeSchoolId(payload.school_id);
+        const existingSubscription = String(existing.subscription_type || '').toLowerCase();
+        const payloadSubscription = String(payload.subscription_type || '').toLowerCase();
+        const existingGrades = normalizeGradesComparable(existing.grade_ids ?? existing.grade_id);
+        const payloadGrades = normalizeGradesComparable(payload.grade_ids);
+        return existingSchool === payloadSchool
+          && existingSubscription === payloadSubscription
+          && existingGrades === payloadGrades;
+      };
+
+      const isDuplicateMapping = (existing, payload) => {
+        if (!isSameAudience(existing, payload)) return false;
+
+        const existingType = String(existing.content_type || '').toLowerCase();
+        const payloadType = String(payload.content_type || '').toLowerCase();
+        if (existingType !== payloadType) return false;
+
+        if (payloadType === 'category') {
+          const existingCategory = normalizeComparableCategory(existing.category || existing.content_title);
+          const payloadCategory = normalizeComparableCategory(payload.category || payload.content_title);
+          if (existingCategory && payloadCategory) {
+            return existingCategory === payloadCategory;
+          }
+        }
+
+        return comparableContentId(existing.content_id) === comparableContentId(payload.content_id);
+      };
+
+      const duplicatePayloads = [];
+      const payloadsToSave = [];
+
+      dedupedPayloads.forEach((payload) => {
+        const duplicateFound = existingMappings.some((existing) => {
           if (mode === 'edit' && Number(existing.id) === Number(id)) {
             return false;
           }
-          const existingGrades = normalizeGradeIds(existing.grade_ids ?? existing.grade_id);
-          const existingSchoolId = Number(existing.school ?? existing.school_id ?? 0) || 0;
-          const payloadSchoolId = Number(payload.school_id ?? 0) || 0;
-          const existingSubscription = (existing.subscription_type || '').toLowerCase();
-          const payloadSubscription = (payload.subscription_type || '').toLowerCase();
-          const existingContentType = (existing.content_type || '').toLowerCase();
-          const payloadContentType = (payload.content_type || '').toLowerCase();
-          return comparableContentId(existing.content_id) === payloadContentId
-            && existingContentType === payloadContentType
-            && existingSchoolId === payloadSchoolId
-            && existingSubscription === payloadSubscription
-            && areArraysEqual(existingGrades, payloadGrades);
+          return isDuplicateMapping(existing, payload);
         });
+
+        if (duplicateFound) {
+          duplicatePayloads.push(payload);
+        } else {
+          payloadsToSave.push(payload);
+        }
       });
 
-      if (duplicateExists) {
+      if (duplicatePayloads.length > 0) {
+        const duplicateTitles = [...new Set(duplicatePayloads.map(p => p.content_title || p.content_id))];
+        setDuplicateModalMessage('Duplicate mapping is not allowed. The mapping you are trying to do already exists.');
         setShowDuplicateModal(true);
+        setWarningToast(`Skipped duplicate assets: ${duplicateTitles.join(', ')}`);
+      }
+
+      if (payloadsToSave.length === 0) {
         setSubmitting(false);
         return;
       }
 
       if (mode === 'edit') {
-        if (dedupedPayloads.length !== 1) {
+        if (payloadsToSave.length !== 1) {
           setError('Edit mode supports updating a single mapping. Please keep one asset and one audience selection.');
           setSubmitting(false);
           return;
         }
-        const editPayload = dedupedPayloads[0];
+        const editPayload = payloadsToSave[0];
         console.log('Payload:', JSON.stringify(editPayload));
         const editResult = await updateMapping(id, editPayload);
         console.log('Result:', { status: 'fulfilled', value: editResult, payload: editPayload });
@@ -419,7 +487,7 @@ const MappingControlPage = ({ mode }) => {
       }
 
       const results = [];
-      for (const payload of dedupedPayloads) {
+      for (const payload of payloadsToSave) {
         try {
           const value = await createMapping(payload);
           const result = { status: 'fulfilled', value, payload };
@@ -606,6 +674,13 @@ const MappingControlPage = ({ mode }) => {
             <Info size={18} />
             <span>{error}</span>
             <button onClick={() => setError(null)}>×</button>
+          </div>
+        )}
+        {warningToast && (
+          <div className="meta-warning-toast animate-slide-in">
+            <Info size={18} />
+            <span>{warningToast}</span>
+            <button onClick={() => setWarningToast(null)}>×</button>
           </div>
         )}
         {metaWarning && (
@@ -825,77 +900,32 @@ const MappingControlPage = ({ mode }) => {
                 </div>
                 <div className="row-content">
                   {formData.selectedAssets.filter(a => a.type === type).length > 0 ? (
-                    type === 'Courses' ? (
-                      <div className="course-groups">
-                        {Object.entries(
-                          formData.selectedAssets
-                            .filter(a => a.type === 'Courses')
-                            .reduce((acc, asset) => {
-                              const category = asset.category || 'Uncategorized';
-                              if (!acc[category]) acc[category] = [];
-                              acc[category].push(asset);
-                              return acc;
-                            }, {})
-                        ).map(([category, items]) => (
-                          <div key={category} className="course-group-block">
-                            <div className="course-group-title">{category}</div>
-                            <table className="assets-table">
-                              <thead>
-                                <tr>
-                                  <th>#</th>
-                                  <th>Name</th>
-                                  <th>Category</th>
-                                  <th>Remove</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {items.map((asset, idx) => (
-                                  <tr key={`${asset.type}-${asset.id}`}>
-                                    <td className="row-num">{idx + 1}</td>
-                                    <td className="asset-name-cell">{asset.title || asset.name}</td>
-                                    <td><span className="type-badge">{asset.category || '—'}</span></td>
-                                    <td>
-                                      <button
-                                        className="remove-row-btn"
-                                        onClick={() => handleAssetToggle(asset)}
-                                        title="Remove"
-                                      >×</button>
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        ))}
-                      </div>
-                    ) : (
-                      <table className="assets-table">
-                        <thead>
-                          <tr>
-                            <th>#</th>
-                            <th>Name</th>
-                            <th>Category</th>
-                            <th>Remove</th>
+                    <table className="assets-table">
+                      <thead>
+                        <tr>
+                          <th>#</th>
+                          <th>Name</th>
+                          <th>Category</th>
+                          <th>Remove</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {formData.selectedAssets.filter(a => a.type === type).map((asset, idx) => (
+                          <tr key={`${asset.type}-${asset.id}`}>
+                            <td className="row-num">{idx + 1}</td>
+                            <td className="asset-name-cell">{asset.title || asset.name}</td>
+                            <td><span className="type-badge">{asset.category || '—'}</span></td>
+                            <td>
+                              <button
+                                className="remove-row-btn"
+                                onClick={() => handleAssetToggle(asset)}
+                                title="Remove"
+                              >×</button>
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {formData.selectedAssets.filter(a => a.type === type).map((asset, idx) => (
-                            <tr key={`${asset.type}-${asset.id}`}>
-                              <td className="row-num">{idx + 1}</td>
-                              <td className="asset-name-cell">{asset.title || asset.name}</td>
-                              <td><span className="type-badge">{asset.category || '—'}</span></td>
-                              <td>
-                                <button
-                                  className="remove-row-btn"
-                                  onClick={() => handleAssetToggle(asset)}
-                                  title="Remove"
-                                >×</button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )
+                        ))}
+                      </tbody>
+                    </table>
                   ) : (
                     <div className="empty-state">No {type.toLowerCase()} selected yet. Click <strong>+ Add</strong> to select.</div>
                   )}
@@ -952,7 +982,7 @@ const MappingControlPage = ({ mode }) => {
         title="Duplicate Mapping Not Allowed"
       >
         <div className="duplicate-modal-content">
-          <p>Duplicate Mapping Not Allowed — A mapping for this content and audience already exists. Please modify your selection.</p>
+          <p>{duplicateModalMessage || 'Duplicate mapping is not allowed. The mapping you are trying to do already exists.'}</p>
           <div className="duplicate-modal-actions">
             <button className="btn btn-primary" onClick={() => setShowDuplicateModal(false)}>Got it</button>
           </div>
@@ -1429,29 +1459,6 @@ const MappingControlPage = ({ mode }) => {
           border-collapse: collapse;
           font-size: 13.5px;
           margin-top: 4px;
-        }
-
-        .course-groups {
-          display: flex;
-          flex-direction: column;
-          gap: 14px;
-        }
-
-        .course-group-block {
-          border: 1px solid #e2e8f0;
-          border-radius: 10px;
-          overflow: hidden;
-        }
-
-        .course-group-title {
-          background: #f8fafc;
-          border-bottom: 1px solid #e2e8f0;
-          padding: 10px 14px;
-          font-size: 13px;
-          font-weight: 700;
-          color: #334155;
-          text-transform: uppercase;
-          letter-spacing: 0.04em;
         }
 
         .assets-table thead tr {

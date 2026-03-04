@@ -29,9 +29,26 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
   };
 
   const getTypeClass = (mapping) => {
-    const raw = String(mapping?.content_type || '').trim().toLowerCase();
-    if (!raw) return 'unknown';
-    return raw.replace(/\s+/g, '-');
+    const aliases = {
+      course: 'course',
+      courses: 'course',
+      workshop: 'workshop',
+      workshops: 'workshop',
+      book: 'book',
+      books: 'book',
+      byte: 'byte',
+      bytes: 'byte',
+      category: 'category',
+      categories: 'category',
+    };
+
+    const fromType = String(mapping?.content_type || '').trim().toLowerCase();
+    if (aliases[fromType]) return aliases[fromType];
+
+    const fromCategory = String(mapping?.category || '').trim().toLowerCase();
+    if (aliases[fromCategory]) return aliases[fromCategory];
+
+    return 'unknown';
   };
 
   const getStatusBadge = (mapping) => {
@@ -92,9 +109,16 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
                   </div>
                 </td>
                 <td>
-                  <span className={`type-tag tag-${getTypeClass(m)}`}>
-                    {getCategoryDisplay(m)}
-                  </span>
+                  <div className="category-stack">
+                    <span className={`type-tag tag-${getTypeClass(m)}`}>
+                      {(m.content_type || '—').toUpperCase()}
+                    </span>
+                    {String(m.category || '').trim() && (
+                      <span className="subject-tag">
+                        {m.category}
+                      </span>
+                    )}
+                  </div>
                 </td>
                 <td className="audience-cell text-muted">
                   {getAudienceDisplay(m)}
@@ -201,11 +225,28 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
           border-radius: 6px;
         }
 
+        .category-stack {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+          align-items: flex-start;
+        }
+
+        .subject-tag {
+          font-size: 11px;
+          font-weight: 600;
+          padding: 3px 10px;
+          border-radius: 999px;
+          background: #f8fafc;
+          color: #475569;
+        }
+
         .tag-course { background: #eef2ff; color: #4f46e5; }
-        .tag-workshop { background: #fff7ed; color: #ea580c; }
-        .tag-book { background: #ecfdf5; color: #059669; }
-        .tag-byte { background: #fdf2f8; color: #db2777; }
-        .tag-category { background: #f5f3ff; color: #7c3aed; }
+        .tag-workshop { background: #f3e8ff; color: #7c3aed; }
+        .tag-book { background: #dcfce7; color: #166534; }
+        .tag-byte { background: #fff7ed; color: #c2410c; }
+        .tag-category { background: #f1f5f9; color: #475569; }
+        .tag-unknown { background: #f1f5f9; color: #475569; }
 
         .audience-cell {
           font-size: 14px;
