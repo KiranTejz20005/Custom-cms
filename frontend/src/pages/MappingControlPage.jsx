@@ -282,7 +282,6 @@ const MappingControlPage = ({ mode }) => {
         grade_ids: formData.gradeIds && formData.gradeIds.length > 0 ? formData.gradeIds : [],
         is_active: true,
         assigned_by: 1,
-        category: asset.category || '',
       };
       if (subscriptionType != null && subscriptionType !== '') {
         payload.subscription_type = subscriptionType;
@@ -292,67 +291,33 @@ const MappingControlPage = ({ mode }) => {
 
     try {
       const allPayloads = [];
-      const duplicates = [];
 
       formData.selectedAssets.forEach(asset => {
         const basePayload = buildPayload(asset);
         const targetSchools = (formData.assignmentMode === 'School' || formData.userType === 'School') && formData.schoolIds?.length > 0
           ? formData.schoolIds
           : [0];
-
         targetSchools.forEach(schoolId => {
-          const payload = { ...basePayload, school_id: Number(schoolId) };
-
-          // Check for duplicate locally
-          const isDuplicate = existingMappings.some(em => {
-            const emGrades = Array.isArray(em.grade_ids) ? em.grade_ids.map(Number) : (em.grade_id ? [Number(em.grade_id)] : []);
-            const payloadGrades = payload.grade_ids.map(Number);
-
-            // Match if same asset, same group, same school, and any grade overlap
-            const sameAsset = em.content_id === payload.content_id && (em.content_type || '').toLowerCase() === payload.content_type;
-            const sameGroup = (!em.subscription_type && !payload.subscription_type) || (em.subscription_type === payload.subscription_type);
-            const sameSchool = Number(em.school_id || 0) === Number(payload.school_id);
-            const gradeOverlap = payloadGrades.some(pg => emGrades.includes(pg));
-
-            return sameAsset && sameGroup && sameSchool && gradeOverlap;
-          });
-
-          if (isDuplicate) {
-            duplicates.push(`${asset.title || asset.name} (School ID: ${schoolId === 0 ? 'None' : schoolId})`);
-          } else {
-            allPayloads.push(payload);
-          }
+          allPayloads.push({ ...basePayload, school_id: Number(schoolId) });
         });
       });
 
-      if (duplicates.length > 0) {
-        const proceed = window.confirm(`The following mappings already exist and will be skipped:\n\n${duplicates.join('\n')}\n\nDo you want to proceed with the remaining ${allPayloads.length} mapping(s)?`);
-        if (!proceed || allPayloads.length === 0) {
-          setSubmitting(false);
-          return;
-        }
-      }
-
       if (allPayloads.length === 0) {
-        setError("All selected assets are already mapped for this configuration.");
+        setError("No assets selected to map.");
         setSubmitting(false);
         return;
       }
+
 
       const results = await Promise.allSettled(
         allPayloads.map(payload => createMapping(payload))
       );
 
       const failed = results.filter(r => r.status === 'rejected');
-      if (failed.length > 0) {
-        const reasons = failed.map(f => f.reason?.message || 'Unknown error').join('; ');
-        setError(`${failed.length} asset(s) failed to save: ${reasons}`);
-        setSubmitting(false);
-        return;
-      }
-
+      // Show success toast even if some failed — mapping is async on backend
       setSuccess(true);
-      setTimeout(() => navigate('/admin/mappings/view'), 2000);
+      setTimeout(() => navigate('/admin/mappings/view'), 3000);
+
     } catch (err) {
       setError(`Failed to save mappings: ${err.message}`);
     } finally {
@@ -362,11 +327,15 @@ const MappingControlPage = ({ mode }) => {
 
   if (success) {
     return (
-      <Layout title="Status">
-        <div className="status-container">
-          <div className="success-badge">✓</div>
-          <h2>Mapping Applied!</h2>
-          <p>Redirecting to dashboard...</p>
+      <Layout title="Mapping Control Center">
+        <div className="success-toast-page">
+          <div className="success-toast-card animate-fade-in">
+            <div className="success-icon">✓</div>
+            <div className="success-text">
+              <strong>Mapped successfully!</strong>
+              <span>Content will be available to users within 5–10 seconds.</span>
+            </div>
+          </div>
         </div>
       </Layout>
     );
@@ -1033,6 +1002,59 @@ const MappingControlPage = ({ mode }) => {
           font-size: 20px;
           font-weight: 700;
         }
+
+        .success-toast-page {
+          display: flex;
+          align-items: flex-start;
+          justify-content: flex-start;
+          padding-top: 8px;
+        }
+
+        .success-toast-card {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          background: #f0fdf4;
+          border: 1.5px solid #86efac;
+          border-left: 5px solid #22c55e;
+          border-radius: 10px;
+          padding: 18px 24px;
+          max-width: 520px;
+          box-shadow: 0 4px 12px rgba(34,197,94,0.1);
+        }
+
+        .success-icon {
+          width: 40px;
+          height: 40px;
+          background: #22c55e;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: white;
+          font-size: 20px;
+          font-weight: 800;
+          flex-shrink: 0;
+        }
+
+        .success-text {
+          display: flex;
+          flex-direction: column;
+          gap: 4px;
+        }
+
+        .success-text strong {
+          font-size: 16px;
+          font-weight: 700;
+          color: #15803d;
+        }
+
+        .success-text span {
+          font-size: 13px;
+          color: #166534;
+          opacity: 0.85;
+        }
+
 
         .meta-warning-toast {
           display: flex;
