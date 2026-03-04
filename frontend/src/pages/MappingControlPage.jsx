@@ -176,6 +176,14 @@ const MappingControlPage = ({ mode }) => {
       return;
     }
 
+    if (type === 'Courses') {
+      const selectedCategories = formData.selectedAssets.filter(a => a.type === 'Categories');
+      if (selectedCategories.length === 0) {
+        setError("Please select at least one Category before adding Courses.");
+        return;
+      }
+    }
+
     setPickerType(type);
     setShowPicker(true);
   };
@@ -311,7 +319,11 @@ const MappingControlPage = ({ mode }) => {
             <div className="filter-group">
               <label>User Type</label>
               <div className="custom-select">
-                <select value={formData.userType} onChange={(e) => setFormData({ ...formData, userType: e.target.value })}>
+                <select
+                  value={formData.userType}
+                  onChange={(e) => setFormData({ ...formData, userType: e.target.value })}
+                  disabled={!formData.assignmentMode}
+                >
                   <option value="" disabled hidden>Select</option>
                   <option value="all">All User Type</option>
                   <option value="Premium">Premium Type</option>
@@ -325,9 +337,16 @@ const MappingControlPage = ({ mode }) => {
               <div className="filter-group" ref={schoolDropdownRef}>
                 <label>Select Schools</label>
                 <div
-                  className={`custom-select \${isSchoolDropdownOpen ? 'open' : ''}`}
-                  onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
-                  style={{ cursor: 'pointer', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', background: '#f8fafc', width: '100%' }}
+                  className={`custom-select \${isSchoolDropdownOpen ? 'open' : ''} \${!formData.assignmentMode ? 'disabled' : ''}`}
+                  onClick={() => formData.assignmentMode && setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
+                  style={{
+                    cursor: formData.assignmentMode ? 'pointer' : 'not-allowed',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: 'var(--radius-md)',
+                    background: '#f8fafc',
+                    width: '100%',
+                    opacity: formData.assignmentMode ? 1 : 0.6
+                  }}
                 >
                   <div style={{ padding: '12px 16px', width: '100%', fontSize: '15px' }}>
                     {formData.schoolIds?.length === 0
@@ -386,9 +405,16 @@ const MappingControlPage = ({ mode }) => {
             <div className="filter-group" ref={gradeDropdownRef}>
               <label>Select Grades</label>
               <div
-                className={`custom-select ${isGradeDropdownOpen ? 'open' : ''}`}
-                onClick={() => setIsGradeDropdownOpen(!isGradeDropdownOpen)}
-                style={{ cursor: 'pointer', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', background: '#f8fafc', width: '100%' }}
+                className={`custom-select ${isGradeDropdownOpen ? 'open' : ''} ${!formData.assignmentMode ? 'disabled' : ''}`}
+                onClick={() => formData.assignmentMode && setIsGradeDropdownOpen(!isGradeDropdownOpen)}
+                style={{
+                  cursor: formData.assignmentMode ? 'pointer' : 'not-allowed',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-md)',
+                  background: '#f8fafc',
+                  width: '100%',
+                  opacity: formData.assignmentMode ? 1 : 0.6
+                }}
               >
                 <div style={{ padding: '12px 16px', width: '100%', fontSize: '15px' }}>
                   {formData.gradeIds.length === 0
@@ -457,7 +483,15 @@ const MappingControlPage = ({ mode }) => {
                     </span>
                   </div>
                   <div className="header-actions">
-                    <button className="add-btn" onClick={(e) => { e.stopPropagation(); openPicker(type); }}>
+                    <button
+                      className={`add-btn ${type === 'Courses' && formData.selectedAssets.filter(a => a.type === 'Categories').length === 0 ? 'disabled' : ''}`}
+                      onClick={(e) => { e.stopPropagation(); openPicker(type); }}
+                      style={{
+                        opacity: type === 'Courses' && formData.selectedAssets.filter(a => a.type === 'Categories').length === 0 ? 0.5 : 1,
+                        cursor: type === 'Courses' && formData.selectedAssets.filter(a => a.type === 'Categories').length === 0 ? 'not-allowed' : 'pointer'
+                      }}
+                      disabled={type === 'Courses' && formData.selectedAssets.filter(a => a.type === 'Categories').length === 0}
+                    >
                       <Plus size={14} />
                       <span>Add</span>
                     </button>
