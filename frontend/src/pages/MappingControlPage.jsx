@@ -337,7 +337,7 @@ const MappingControlPage = ({ mode }) => {
               <div className="filter-group" ref={schoolDropdownRef}>
                 <label>Select Schools</label>
                 <div
-                  className={`custom-select \${isSchoolDropdownOpen ? 'open' : ''} \${!formData.assignmentMode ? 'disabled' : ''}`}
+                  className={`custom-select ${isSchoolDropdownOpen ? 'open' : ''} ${!formData.assignmentMode ? 'disabled' : ''}`}
                   onClick={() => formData.assignmentMode && setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
                   style={{
                     cursor: formData.assignmentMode ? 'pointer' : 'not-allowed',
@@ -353,7 +353,7 @@ const MappingControlPage = ({ mode }) => {
                       ? 'Choose School...'
                       : formData.schoolIds?.length === schools.length && schools.length > 0
                         ? 'All Schools'
-                        : `\${formData.schoolIds?.length} School(s) Selected`}
+                        : `${formData.schoolIds?.length} School(s) Selected`}
                   </div>
                   <ChevronDown size={16} style={{
                     position: 'absolute', right: '16px',

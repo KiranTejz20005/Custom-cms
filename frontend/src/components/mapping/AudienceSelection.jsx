@@ -163,7 +163,7 @@ const AudienceSelection = ({ data, updateData }) => {
                         <div className="form-group" ref={schoolDropdownRef}>
                             <label>Select Schools</label>
                             <div
-                                className={`custom-select \${isSchoolDropdownOpen ? 'open' : ''}`}
+                                className={`custom-select ${isSchoolDropdownOpen ? 'open' : ''}`}
                                 onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
                                 style={{ cursor: 'pointer', border: '1px solid var(--border-color)', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'white', position: 'relative' }}
                             >
@@ -172,11 +172,11 @@ const AudienceSelection = ({ data, updateData }) => {
                                         ? 'Choose School...'
                                         : data.schoolIds.length === schools.length && schools.length > 0
                                             ? 'All Schools'
-                                            : `\${data.schoolIds.length} School(s) Selected`}
+                                            : `${data.schoolIds.length} School(s) Selected`}
                                 </div>
                                 <ChevronDown size={16} style={{
                                     position: 'absolute', right: '16px', top: '50%',
-                                    transform: `translateY(-50%) \${isSchoolDropdownOpen ? 'rotate(180deg)' : 'none'}`,
+                                    transform: `translateY(-50%) ${isSchoolDropdownOpen ? 'rotate(180deg)' : 'none'}`,
                                     transition: 'transform 0.2s',
                                     pointerEvents: 'none'
                                 }} />
