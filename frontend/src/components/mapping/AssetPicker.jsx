@@ -91,47 +91,44 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, onFilt
                         <label>Mapping Type</label>
                         <select value={selectedFilters?.assignmentMode || ''} disabled>
                             <option value="">Select</option>
-                            <option value="all">All user groups</option>
-                            <option value="Premium">Premium</option>
-                            <option value="Ultra">Ultra</option>
-                            <option value="School">Select Schools</option>
+                            <option value="User">User</option>
+                            <option value="Asset">Asset</option>
                         </select>
                     </div>
 
                     <div className="filter-field readonly">
                         <label>User Type</label>
                         <select value={selectedFilters?.userType || ''} disabled>
-                            <option value="">Choose Audience...</option>
-                            <option value="Premium">Premium</option>
-                            <option value="Ultra">Ultra</option>
-                            <option value="Basic">Basic</option>
-                            <option value="School">School/Institution</option>
-                            <option value="All">All Registered Users</option>
+                            <option value="">Select</option>
+                            <option value="all">All User Type</option>
+                            <option value="Premium">Premium Type</option>
+                            <option value="Ultra">Ultra Type</option>
+                            <option value="School">Schools Type</option>
                         </select>
                     </div>
 
-                    {selectedFilters?.assignmentMode === 'School' && (
+                    {(selectedFilters?.assignmentMode === 'School' || selectedFilters?.userType === 'School') && (
                         <div className="filter-field readonly">
-                            <label>Select Schools</label>
-                            <select value={selectedFilters?.schoolId || ''} disabled>
-                                <option value="">Choose School...</option>
-                                {schools.map(school => (
-                                    <option key={school.id} value={school.id}>{school.name}</option>
-                                ))}
-                            </select>
+                            <label>Selected Schools</label>
+                            <div className="readonly-text">
+                                {selectedFilters.schoolIds?.length === 0
+                                    ? 'None'
+                                    : selectedFilters.schoolIds?.length === schools.length && schools.length > 0
+                                        ? 'All Schools'
+                                        : `${selectedFilters.schoolIds?.length} School(s) selected`}
+                            </div>
                         </div>
                     )}
 
                     <div className="filter-field readonly">
-                        <label>Select Grades</label>
-                        <select value={selectedFilters?.gradeIds?.[0] || ''} disabled>
-                            <option value="">Choose Grade...</option>
-                            {grades.map(grade => (
-                                <option key={grade.id} value={grade.id}>
-                                    {grade.name?.toLowerCase().includes('grade') ? grade.name : `Grade ${grade.name || grade.id}`}
-                                </option>
-                            ))}
-                        </select>
+                        <label>Selected Grades</label>
+                        <div className="readonly-text">
+                            {selectedFilters.gradeIds?.length === 0
+                                ? 'None'
+                                : selectedFilters.gradeIds?.length === grades.length && grades.length > 0
+                                    ? 'All Grades'
+                                    : `${selectedFilters.gradeIds?.length} Grade(s) selected`}
+                        </div>
                     </div>
                 </div>
 
@@ -224,6 +221,26 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, onFilt
                     color: #1e293b;
                     cursor: pointer;
                     outline: none;
+                }
+
+                .filter-field select:disabled {
+                    background: #f1f5f9;
+                    cursor: not-allowed;
+                    color: #64748b;
+                    border-color: #e2e8f0;
+                }
+
+                .readonly-text {
+                    width: 100%;
+                    padding: 8px 12px;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    font-size: 14px;
+                    background: #f1f5f9;
+                    color: #64748b;
+                    min-height: 38px;
+                    display: flex;
+                    align-items: center;
                 }
 
                 .filter-field select:focus {
