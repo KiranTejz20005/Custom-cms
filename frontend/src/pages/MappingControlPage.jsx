@@ -230,6 +230,7 @@ const MappingControlPage = ({ mode }) => {
         grade_ids: formData.gradeIds && formData.gradeIds.length > 0 ? formData.gradeIds : [],
         is_active: true,
         assigned_by: 1,
+        category: asset.category || '',
       };
       if (subscriptionType != null && subscriptionType !== '') {
         payload.subscription_type = subscriptionType;

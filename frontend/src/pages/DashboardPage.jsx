@@ -190,8 +190,8 @@ const DashboardPage = () => {
             <div className="dashboard-content">
                 <header className="dashboard-header animate-fade-in">
                     <div className="header-text">
-                        <h1>Mapped Assets</h1>
-                        <p>Manage and monitor all course-to-audience assignments.</p>
+                        <h1>{searchParams.get('assetType') ? `${searchParams.get('assetType').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Mapping` : 'Mapped Assets'}</h1>
+                        <p>Manage and monitor all {searchParams.get('assetType') ? searchParams.get('assetType').replace(/_/g, ' ') : 'course'}-to-audience assignments.</p>
                     </div>
                 </header>
 
@@ -211,20 +211,22 @@ const DashboardPage = () => {
                     </form>
 
                     <div className="filter-group">
-                        <div className="filter-item glass">
-                            <Layers size={16} />
-                            <select
-                                value={filters.assetType}
-                                onChange={handleAssetTypeChange}
-                            >
-                                <option value="">All Assets</option>
-                                <option value="course">Courses</option>
-                                <option value="workshop">Workshops</option>
-                                <option value="book">Books</option>
-                                <option value="byte">Bytes</option>
-                                <option value="category">Categories</option>
-                            </select>
-                        </div>
+                        {!searchParams.get('assetType') && (
+                            <div className="filter-item glass">
+                                <Layers size={16} />
+                                <select
+                                    value={filters.assetType}
+                                    onChange={handleAssetTypeChange}
+                                >
+                                    <option value="">All Assets</option>
+                                    <option value="course">Courses</option>
+                                    <option value="workshop">Workshops</option>
+                                    <option value="book">Books</option>
+                                    <option value="byte">Bytes</option>
+                                    <option value="category">Categories</option>
+                                </select>
+                            </div>
+                        )}
 
                         <div className="filter-item glass">
                             <Users size={16} />
