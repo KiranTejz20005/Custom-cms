@@ -15,15 +15,40 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                 switch (type) {
                     case 'Courses': res = await getCourses(); break;
                     case 'Workshops': {
-                        const workshopsRes = await getWorkshops();
-                        res = Array.isArray(workshopsRes) ? workshopsRes : (workshopsRes.items || workshopsRes.data || []);
+                        const raw = await getWorkshops();
+                        res = Array.isArray(raw) ? raw : (raw.items || raw.data || []);
                         break;
                     }
                     case 'Categories': {
-                        const coursesRes = await getCourses();
-                        const coursesData = Array.isArray(coursesRes) ? coursesRes : (coursesRes.data || []);
-                        const uniqueCats = [...new Set(coursesData.map(c => c.category).filter(Boolean))];
-                        res = uniqueCats.map(cat => ({ id: cat, title: cat, category: 'Course Categories' }));
+                        let categoriesData = [];
+                        try {
+                            const categoriesRes = await getCategories();
+                            categoriesData = Array.isArray(categoriesRes) ? categoriesRes : (categoriesRes.items || categoriesRes.data || []);
+                        } catch (_) {
+                            categoriesData = [];
+                        }
+
+                        if (categoriesData.length > 0) {
+                            const uniqueByName = new Map();
+                            categoriesData.forEach((cat) => {
+                                const label = cat?.name || cat?.title || cat?.category;
+                                if (!label) return;
+                                if (!uniqueByName.has(label)) {
+                                    uniqueByName.set(label, {
+                                        id: cat?.id ?? label,
+                                        title: label,
+                                        category: 'Course Categories',
+                                        category_name: label,
+                                    });
+                                }
+                            });
+                            res = Array.from(uniqueByName.values());
+                        } else {
+                            const coursesRes = await getCourses();
+                            const coursesData = Array.isArray(coursesRes) ? coursesRes : (coursesRes.data || []);
+                            const uniqueCats = [...new Set(coursesData.map(c => c.category).filter(Boolean))];
+                            res = uniqueCats.map(cat => ({ id: cat, title: cat, category: 'Course Categories', category_name: cat }));
+                        }
                         break;
                     }
                     case 'Bytes': res = await getByteCategories(); break;
@@ -48,7 +73,8 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
         if (type === 'Courses') {
             const selectedCategories = selectedFilters?.selectedAssets
                 ?.filter(asset => asset.type === 'Categories')
-                ?.map(asset => asset.id) || [];
+                ?.map(asset => asset.category_name || asset.title || asset.name)
+                ?.filter(Boolean) || [];
             if (selectedCategories.length > 0) {
                 return matchesSearch && selectedCategories.includes(a.category);
             }
@@ -169,32 +195,34 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                         <span>No {type.toLowerCase()} found{search ? ' matching your search' : ''}.</span>
                     </div>
                 ) : (
-                    groupKeys.map(groupName => (
-                        <div key={groupName} className="wm-group">
-                            {groupKeys.length > 1 && (
-                                <p className="wm-group-title">{groupName}</p>
-                            )}
-                            <div className="wm-items">
-                                {groupedAssets[groupName].map(asset => {
-                                    const isSelected = selectedIds.includes(asset.id);
-                                    return (
-                                        <label
-                                            key={asset.id}
-                                            className={`wm-item ${isSelected ? 'wm-item--on' : ''}`}
-                                        >
-                                            <input
-                                                type="checkbox"
-                                                checked={isSelected}
-                                                onChange={() => onSelect({ ...asset, type })}
-                                                className="wm-cb"
-                                            />
-                                            <span className="wm-item-label">{asset.title || asset.name}</span>
-                                        </label>
-                                    );
-                                })}
+                    <div className={`wm-groups ${type === 'Courses' ? 'wm-groups-courses' : ''}`}>
+                        {groupKeys.map(groupName => (
+                            <div key={groupName} className="wm-group">
+                                {(type === 'Courses' || groupKeys.length > 1) && (
+                                    <p className="wm-group-title">{groupName}</p>
+                                )}
+                                <div className="wm-items">
+                                    {groupedAssets[groupName].map(asset => {
+                                        const isSelected = selectedIds.includes(asset.id);
+                                        return (
+                                            <label
+                                                key={asset.id}
+                                                className={`wm-item ${isSelected ? 'wm-item--on' : ''}`}
+                                            >
+                                                <input
+                                                    type="checkbox"
+                                                    checked={isSelected}
+                                                    onChange={() => onSelect({ ...asset, type })}
+                                                    className="wm-cb"
+                                                />
+                                                <span className="wm-item-label">{asset.title || asset.name}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
                             </div>
-                        </div>
-                    ))
+                        ))}
+                    </div>
                 )}
             </div>
 
@@ -329,6 +357,25 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                 }
                 .wm-group:last-child {
                     margin-bottom: 0;
+                }
+
+                .wm-groups {
+                    display: block;
+                }
+
+                .wm-groups-courses {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 14px;
+                    align-items: start;
+                }
+
+                .wm-groups-courses .wm-group {
+                    margin-bottom: 0;
+                    border: 1px solid #eef2f7;
+                    border-radius: 8px;
+                    padding: 10px 12px;
+                    background: #ffffff;
                 }
 
                 .wm-group-title {

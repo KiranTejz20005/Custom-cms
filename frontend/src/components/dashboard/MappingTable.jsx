@@ -1,7 +1,39 @@
 import React from 'react';
 import { Edit2, Trash2, Calendar, Eye, AlertTriangle, CheckCircle } from 'lucide-react';
 
-const MappingTable = ({ mappings, onEdit, onDelete }) => {
+const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
+  const getCategoryDisplay = (mapping) => {
+    if (!mapping) return '—';
+    return mapping.category || mapping.content_type || '—';
+  };
+
+  const getDisplayId = (mapping) => {
+    if (!mapping) return '—';
+
+    const courseId = Number(mapping.course);
+    if (Number.isFinite(courseId) && courseId > 0) {
+      return courseId;
+    }
+
+    const contentIdNumber = Number(mapping.content_id);
+    if (Number.isFinite(contentIdNumber) && String(mapping.content_id ?? '').trim() !== '') {
+      return contentIdNumber;
+    }
+
+    const rowId = Number(mapping.id);
+    if (Number.isFinite(rowId)) {
+      return rowId;
+    }
+
+    return '—';
+  };
+
+  const getTypeClass = (mapping) => {
+    const raw = String(mapping?.content_type || '').trim().toLowerCase();
+    if (!raw) return 'unknown';
+    return raw.replace(/\s+/g, '-');
+  };
+
   const getStatusBadge = (mapping) => {
     const now = new Date();
     if (mapping.expires_at && new Date(mapping.expires_at) < now) {
@@ -56,12 +88,12 @@ const MappingTable = ({ mappings, onEdit, onDelete }) => {
                 <td className="asset-cell">
                   <div className="asset-info">
                     <span className="asset-name">{m.content_title || 'Untitled'}</span>
-                    <span className="asset-id">ID: {m.content_id}</span>
+                    <span className="asset-id">ID: {getDisplayId(m)}</span>
                   </div>
                 </td>
                 <td>
-                  <span className={`type-tag tag-${m.content_type}`}>
-                    {m.content_type}
+                  <span className={`type-tag tag-${getTypeClass(m)}`}>
+                    {getCategoryDisplay(m)}
                   </span>
                 </td>
                 <td className="audience-cell text-muted">
@@ -75,11 +107,16 @@ const MappingTable = ({ mappings, onEdit, onDelete }) => {
                 </td>
                 <td className="actions-cell">
                   <div className="action-buttons">
-                    <button className="icon-btn edit" title="Edit" onClick={() => onEdit(m.id)}>
+                    <button className="icon-btn edit" title="Edit" onClick={() => onEdit(m.id)} disabled={deletingId === m.id}>
                       <Edit2 size={16} />
                     </button>
-                    <button className="icon-btn delete" title="Delete" onClick={() => onDelete(m.id)}>
-                      <Trash2 size={16} />
+                    <button
+                      className="icon-btn delete"
+                      title="Delete"
+                      onClick={() => onDelete(m)}
+                      disabled={deletingId === m.id}
+                    >
+                      <Trash2 size={16} className={deletingId === m.id ? 'spinning' : ''} />
                     </button>
                   </div>
                 </td>
@@ -223,6 +260,11 @@ const MappingTable = ({ mappings, onEdit, onDelete }) => {
           background: #f1f5f9;
         }
 
+        .icon-btn:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+        }
+
         .icon-btn.edit:hover {
           color: var(--primary);
         }
@@ -250,6 +292,15 @@ const MappingTable = ({ mappings, onEdit, onDelete }) => {
         .empty-state h3 {
           margin: 0;
           color: var(--text-main);
+        }
+
+        .spinning {
+          animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       ` }} />
     </div>

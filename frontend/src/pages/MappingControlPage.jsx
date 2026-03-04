@@ -4,7 +4,7 @@ import { ChevronDown, Plus, Users, Layers, Info } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
 import AssetPicker from '../components/mapping/AssetPicker';
-import { createMapping, getMappingById, updateMapping, getSchools, getGrades, getUserCount } from '../services/api';
+import { createMapping, getMappingById, updateMapping, getMappings, getSchools, getGrades, getUserCount } from '../services/api';
 
 const MappingControlPage = ({ mode }) => {
   const navigate = useNavigate();
@@ -18,6 +18,7 @@ const MappingControlPage = ({ mode }) => {
   const [countingUsers, setCountingUsers] = useState(false);
   const [schools, setSchools] = useState([]);
   const [grades, setGrades] = useState([]);
+  const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     categories: true,
     courses: true,
@@ -144,7 +145,7 @@ const MappingControlPage = ({ mode }) => {
           setFormData({
             userType: m.subscription_type ? m.subscription_type.charAt(0).toUpperCase() + m.subscription_type.slice(1) : '',
             gradeIds: m.grade_ids || [],
-            schoolId: m.school_id || 0,
+            schoolIds: m.school_id ? [m.school_id] : [],
             affectedUsersCount: m.user_count || 0,
             selectedAssets: [{ id: m.content_id, title: m.content_title, type: m.content_type?.charAt(0).toUpperCase() + m.content_type?.slice(1) || 'Courses' }],
             accessType: m.starts_at ? 'scheduled' : (m.expires_at ? 'temporary' : 'immediate'),
@@ -258,34 +259,79 @@ const MappingControlPage = ({ mode }) => {
       'Categories': 'category'
     };
 
-    // 1. Fetch existing mappings to check for duplicates
+    const allowedContentTypes = new Set(['course', 'workshop', 'book', 'byte', 'category']);
+
+    const normalizeGradeIds = (gradeIds) => {
+      if (Array.isArray(gradeIds)) {
+        return [...new Set(gradeIds.map(Number).filter(Number.isFinite))].sort((a, b) => a - b);
+      }
+      if (gradeIds == null) return [];
+      const numeric = Number(gradeIds);
+      return Number.isFinite(numeric) ? [numeric] : [];
+    };
+
+    const normalizeContentId = (raw) => {
+      if (raw == null) return null;
+      const asString = String(raw).trim();
+      if (!asString) return null;
+      const asNumber = Number(asString);
+      return Number.isFinite(asNumber) ? asNumber : asString;
+    };
+
+    const comparableContentId = (raw) => {
+      const normalized = normalizeContentId(raw);
+      return normalized == null ? '' : String(normalized);
+    };
+
+    const areArraysEqual = (a, b) => a.length === b.length && a.every((value, index) => value === b[index]);
+
     let existingMappings = [];
     try {
       const resp = await getMappings({ limit: 1000 });
       existingMappings = Array.isArray(resp) ? resp : (resp.items || resp.data || []);
     } catch (err) {
-      console.warn("Failed to fetch existing mappings for duplicate check", err);
+      setError('Unable to validate duplicates right now. Please retry.');
+      setSubmitting(false);
+      return;
     }
 
     const buildPayload = (asset) => {
       const contentType = typeMap[asset.type] || (asset.type || '').toLowerCase();
+      if (!allowedContentTypes.has(contentType)) {
+        throw new Error(`Unsupported content_type: ${contentType || 'unknown'}`);
+      }
+
+      const contentId = normalizeContentId(asset.id);
+      if (contentId == null) {
+        throw new Error(`Invalid content_id for asset: ${asset.title || asset.name || 'Unknown asset'}`);
+      }
+
       const rawUserType = (formData.userType || '').toLowerCase();
       const isAllUserGroups = rawUserType === 'all' || formData.userType === 'All User Groups';
       const subscriptionType = isAllUserGroups
-        ? undefined
+        ? null
         : (rawUserType === 'school' ? 'premium' : rawUserType);
+
+      const normalizedGradeIds = normalizeGradeIds(formData.gradeIds);
 
       const payload = {
         content_type: contentType,
-        content_id: asset.id,
+        content_id: contentId,
         content_title: asset.title || asset.name || '',
-        grade_ids: formData.gradeIds && formData.gradeIds.length > 0 ? formData.gradeIds : [],
+        grade_ids: normalizedGradeIds,
         is_active: true,
         assigned_by: 1,
       };
       if (subscriptionType != null && subscriptionType !== '') {
         payload.subscription_type = subscriptionType;
       }
+
+      console.log('Payload:', JSON.stringify({
+        ...payload,
+        _asset_type: asset.type || null,
+        _asset_category: asset.category ?? null,
+      }));
+
       return payload;
     };
 
@@ -294,11 +340,15 @@ const MappingControlPage = ({ mode }) => {
 
       formData.selectedAssets.forEach(asset => {
         const basePayload = buildPayload(asset);
-        const targetSchools = (formData.assignmentMode === 'School' || formData.userType === 'School') && formData.schoolIds?.length > 0
+        const targetSchools = formData.userType === 'School' && formData.schoolIds?.length > 0
           ? formData.schoolIds
           : [0];
         targetSchools.forEach(schoolId => {
-          allPayloads.push({ ...basePayload, school_id: Number(schoolId) });
+          const normalizedSchoolId = Number(schoolId);
+          allPayloads.push({
+            ...basePayload,
+            school_id: Number.isFinite(normalizedSchoolId) ? normalizedSchoolId : 0
+          });
         });
       });
 
@@ -308,13 +358,90 @@ const MappingControlPage = ({ mode }) => {
         return;
       }
 
+      const dedupedPayloads = [];
+      const requestKeys = new Set();
+      allPayloads.forEach((payload) => {
+        const key = [
+          payload.content_type,
+          comparableContentId(payload.content_id),
+          normalizeGradeIds(payload.grade_ids).join(','),
+          String(payload.school_id ?? 0),
+          payload.subscription_type || 'all',
+        ].join('|');
 
-      const results = await Promise.allSettled(
-        allPayloads.map(payload => createMapping(payload))
-      );
+        if (!requestKeys.has(key)) {
+          requestKeys.add(key);
+          dedupedPayloads.push(payload);
+        }
+      });
 
-      const failed = results.filter(r => r.status === 'rejected');
-      // Show success toast even if some failed — mapping is async on backend
+      const duplicateExists = dedupedPayloads.some((payload) => {
+        const payloadGrades = normalizeGradeIds(payload.grade_ids);
+        const payloadContentId = comparableContentId(payload.content_id);
+        return existingMappings.some((existing) => {
+          if (mode === 'edit' && Number(existing.id) === Number(id)) {
+            return false;
+          }
+          const existingGrades = normalizeGradeIds(existing.grade_ids ?? existing.grade_id);
+          const existingSchoolId = Number(existing.school ?? existing.school_id ?? 0) || 0;
+          const payloadSchoolId = Number(payload.school_id ?? 0) || 0;
+          const existingSubscription = (existing.subscription_type || '').toLowerCase();
+          const payloadSubscription = (payload.subscription_type || '').toLowerCase();
+          const existingContentType = (existing.content_type || '').toLowerCase();
+          const payloadContentType = (payload.content_type || '').toLowerCase();
+          return comparableContentId(existing.content_id) === payloadContentId
+            && existingContentType === payloadContentType
+            && existingSchoolId === payloadSchoolId
+            && existingSubscription === payloadSubscription
+            && areArraysEqual(existingGrades, payloadGrades);
+        });
+      });
+
+      if (duplicateExists) {
+        setShowDuplicateModal(true);
+        setSubmitting(false);
+        return;
+      }
+
+      if (mode === 'edit') {
+        if (dedupedPayloads.length !== 1) {
+          setError('Edit mode supports updating a single mapping. Please keep one asset and one audience selection.');
+          setSubmitting(false);
+          return;
+        }
+        const editPayload = dedupedPayloads[0];
+        console.log('Payload:', JSON.stringify(editPayload));
+        const editResult = await updateMapping(id, editPayload);
+        console.log('Result:', { status: 'fulfilled', value: editResult, payload: editPayload });
+        setSuccess(true);
+        setTimeout(() => navigate('/admin/mappings/view'), 1500);
+        return;
+      }
+
+      const results = [];
+      for (const payload of dedupedPayloads) {
+        try {
+          const value = await createMapping(payload);
+          const result = { status: 'fulfilled', value, payload };
+          console.log('Result:', result);
+          results.push(result);
+        } catch (reason) {
+          const result = { status: 'rejected', reason, payload };
+          console.log('Result:', result);
+          console.error('Failed payload:', JSON.stringify(payload), reason);
+          results.push(result);
+        }
+      }
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.length - successCount;
+      if (successCount === 0) {
+        throw new Error('All mapping requests failed.');
+      }
+      if (failedCount > 0) {
+        setError(`Saved ${successCount} mapping(s), but ${failedCount} failed. Check browser console for failed payloads.`);
+        return;
+      }
       setSuccess(true);
       setTimeout(() => navigate('/admin/mappings/view'), 3000);
 
@@ -698,32 +825,77 @@ const MappingControlPage = ({ mode }) => {
                 </div>
                 <div className="row-content">
                   {formData.selectedAssets.filter(a => a.type === type).length > 0 ? (
-                    <table className="assets-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Name</th>
-                          <th>Category</th>
-                          <th>Remove</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.selectedAssets.filter(a => a.type === type).map((asset, idx) => (
-                          <tr key={`${asset.type}-${asset.id}`}>
-                            <td className="row-num">{idx + 1}</td>
-                            <td className="asset-name-cell">{asset.title || asset.name}</td>
-                            <td><span className="type-badge">{asset.category || '—'}</span></td>
-                            <td>
-                              <button
-                                className="remove-row-btn"
-                                onClick={() => handleAssetToggle(asset)}
-                                title="Remove"
-                              >×</button>
-                            </td>
-                          </tr>
+                    type === 'Courses' ? (
+                      <div className="course-groups">
+                        {Object.entries(
+                          formData.selectedAssets
+                            .filter(a => a.type === 'Courses')
+                            .reduce((acc, asset) => {
+                              const category = asset.category || 'Uncategorized';
+                              if (!acc[category]) acc[category] = [];
+                              acc[category].push(asset);
+                              return acc;
+                            }, {})
+                        ).map(([category, items]) => (
+                          <div key={category} className="course-group-block">
+                            <div className="course-group-title">{category}</div>
+                            <table className="assets-table">
+                              <thead>
+                                <tr>
+                                  <th>#</th>
+                                  <th>Name</th>
+                                  <th>Category</th>
+                                  <th>Remove</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {items.map((asset, idx) => (
+                                  <tr key={`${asset.type}-${asset.id}`}>
+                                    <td className="row-num">{idx + 1}</td>
+                                    <td className="asset-name-cell">{asset.title || asset.name}</td>
+                                    <td><span className="type-badge">{asset.category || '—'}</span></td>
+                                    <td>
+                                      <button
+                                        className="remove-row-btn"
+                                        onClick={() => handleAssetToggle(asset)}
+                                        title="Remove"
+                                      >×</button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
                         ))}
-                      </tbody>
-                    </table>
+                      </div>
+                    ) : (
+                      <table className="assets-table">
+                        <thead>
+                          <tr>
+                            <th>#</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Remove</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {formData.selectedAssets.filter(a => a.type === type).map((asset, idx) => (
+                            <tr key={`${asset.type}-${asset.id}`}>
+                              <td className="row-num">{idx + 1}</td>
+                              <td className="asset-name-cell">{asset.title || asset.name}</td>
+                              <td><span className="type-badge">{asset.category || '—'}</span></td>
+                              <td>
+                                <button
+                                  className="remove-row-btn"
+                                  onClick={() => handleAssetToggle(asset)}
+                                  title="Remove"
+                                >×</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )
                   ) : (
                     <div className="empty-state">No {type.toLowerCase()} selected yet. Click <strong>+ Add</strong> to select.</div>
                   )}
@@ -771,6 +943,19 @@ const MappingControlPage = ({ mode }) => {
         <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
           <button className="btn btn-secondary" onClick={() => setShowPicker(false)}>Close</button>
           <button className="btn btn-primary" onClick={() => setShowPicker(false)}>Save Selections</button>
+        </div>
+      </Modal>
+
+      <Modal
+        isOpen={showDuplicateModal}
+        onClose={() => setShowDuplicateModal(false)}
+        title="Duplicate Mapping Not Allowed"
+      >
+        <div className="duplicate-modal-content">
+          <p>Duplicate Mapping Not Allowed — A mapping for this content and audience already exists. Please modify your selection.</p>
+          <div className="duplicate-modal-actions">
+            <button className="btn btn-primary" onClick={() => setShowDuplicateModal(false)}>Got it</button>
+          </div>
         </div>
       </Modal>
 
@@ -1246,6 +1431,29 @@ const MappingControlPage = ({ mode }) => {
           margin-top: 4px;
         }
 
+        .course-groups {
+          display: flex;
+          flex-direction: column;
+          gap: 14px;
+        }
+
+        .course-group-block {
+          border: 1px solid #e2e8f0;
+          border-radius: 10px;
+          overflow: hidden;
+        }
+
+        .course-group-title {
+          background: #f8fafc;
+          border-bottom: 1px solid #e2e8f0;
+          padding: 10px 14px;
+          font-size: 13px;
+          font-weight: 700;
+          color: #334155;
+          text-transform: uppercase;
+          letter-spacing: 0.04em;
+        }
+
         .assets-table thead tr {
           background: #f8fafc;
           border-bottom: 2px solid var(--border-color);
@@ -1375,6 +1583,19 @@ const MappingControlPage = ({ mode }) => {
           font-size: 14px;
           font-weight: 600;
           color: var(--text-main);
+        }
+
+        .duplicate-modal-content p {
+          margin: 0;
+          color: var(--text-main);
+          line-height: 1.6;
+          font-size: 15px;
+        }
+
+        .duplicate-modal-actions {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 20px;
         }
       ` }} />
     </Layout>

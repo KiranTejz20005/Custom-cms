@@ -29,7 +29,7 @@ const AssetSelection = ({ data, updateData }) => {
                     case 'Categories': res = await getCategories(); break;
                     default: res = { data: [] };
                 }
-                setAssets(res.data);
+                setAssets(Array.isArray(res) ? res : (res.data || res.items || []));
             } catch (err) {
                 console.error("Failed to fetch assets", err);
             } finally {

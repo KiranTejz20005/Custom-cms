@@ -1,0 +1,9 @@
+# Ignore attached workspace export
+my-workspace/
+@my-workspace/
+
+# Environment files
+.env
+.env.*
+frontend/.env
+frontend/.env.*

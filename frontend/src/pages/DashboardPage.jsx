@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import MappingTable from '../components/dashboard/MappingTable';
 import Layout from '../components/common/Layout';
+import Modal from '../components/common/Modal';
 import { getMappings, deleteMapping, getSchools, getGrades } from '../services/api';
 import { ChevronDown, Plus, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Download, Users, School, Layers } from 'lucide-react';
 
@@ -15,6 +16,9 @@ const DashboardPage = () => {
     const [page, setPage] = useState(1);
     const [limit] = useState(25);
     const [fetchError, setFetchError] = useState(null);
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, title: '' });
+    const [deletingId, setDeletingId] = useState(null);
+    const [toast, setToast] = useState(null);
 
     const [filters, setFilters] = useState({
         search: '',
@@ -75,6 +79,25 @@ const DashboardPage = () => {
         }
     };
 
+    const normalizeContentType = (value) => {
+        const normalized = String(value || '').trim().toLowerCase();
+        const map = {
+            courses: 'course',
+            course: 'course',
+            workshops: 'workshop',
+            workshop: 'workshop',
+            books: 'book',
+            book: 'book',
+            bytes: 'byte',
+            byte: 'byte',
+            categories: 'category',
+            category: 'category',
+            current_affairs: 'current_affairs',
+            motivation: 'motivation'
+        };
+        return map[normalized] || normalized;
+    };
+
     const loadData = async () => {
         setLoading(true);
         setFetchError(null);
@@ -83,7 +106,6 @@ const DashboardPage = () => {
                 limit: 1000, // Fetch more for client-side filtering
                 offset: 0,
                 search: filters.search || undefined,
-                content_type: filters.assetType || undefined,
             });
 
             // Xano can return { items: [...] } or { data: [...] } or a plain array
@@ -113,7 +135,11 @@ const DashboardPage = () => {
 
             // Client-side asset type filter
             if (filters.assetType) {
-                rows = rows.filter(r => r.content_type === filters.assetType);
+                const wantedType = normalizeContentType(filters.assetType);
+                rows = rows.filter(r => {
+                    const recordType = normalizeContentType(r.content_type || r.category);
+                    return recordType === wantedType;
+                });
             }
 
             // User Type Filter
@@ -162,19 +188,38 @@ const DashboardPage = () => {
         loadData();
     }, [page, filters.assetType, filters.status, filters.userType, filters.gradeIds, filters.schoolIds]);
 
+    useEffect(() => {
+        if (!toast) return undefined;
+        const timeout = setTimeout(() => setToast(null), 3000);
+        return () => clearTimeout(timeout);
+    }, [toast]);
+
     const handleSearch = (e) => {
         e.preventDefault();
         loadData();
     };
 
-    const handleDelete = async (id) => {
-        if (window.confirm('Are you sure you want to delete this mapping? This action cannot be undone.')) {
-            try {
-                await deleteMapping(id);
-                loadData();
-            } catch (err) {
-                alert('Failed to delete mapping');
-            }
+    const handleDelete = (mapping) => {
+        setDeleteModal({
+            isOpen: true,
+            id: mapping.id,
+            title: mapping.content_title || 'this mapping'
+        });
+    };
+
+    const confirmDelete = async () => {
+        if (!deleteModal.id) return;
+        setDeletingId(deleteModal.id);
+        try {
+            await deleteMapping(deleteModal.id);
+            setData(prev => prev.filter(m => m.id !== deleteModal.id));
+            setTotal(prev => Math.max(0, prev - 1));
+            setToast({ type: 'success', message: 'Mapping deleted successfully.' });
+            setDeleteModal({ isOpen: false, id: null, title: '' });
+        } catch (err) {
+            setToast({ type: 'error', message: err.message || 'Failed to delete mapping.' });
+        } finally {
+            setDeletingId(null);
         }
     };
 
@@ -349,6 +394,12 @@ const DashboardPage = () => {
                     </div>
                 </section>
 
+                {toast && (
+                    <div className={`action-toast ${toast.type === 'error' ? 'error' : 'success'}`}>
+                        {toast.message}
+                    </div>
+                )}
+
                 {fetchError && (
                     <div style={{
                         background: '#fef2f2', color: '#991b1b', padding: '14px 20px',
@@ -375,6 +426,7 @@ const DashboardPage = () => {
                                 mappings={data}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
+                                deletingId={deletingId}
                             />
 
                             <footer className="table-footer">
@@ -414,6 +466,37 @@ const DashboardPage = () => {
                     )}
                 </div>
             </div>
+
+            <Modal
+                isOpen={deleteModal.isOpen}
+                onClose={() => {
+                    if (!deletingId) {
+                        setDeleteModal({ isOpen: false, id: null, title: '' });
+                    }
+                }}
+                title="Confirm Delete"
+            >
+                <div className="confirm-delete-content">
+                    <p>Are you sure you want to delete this mapping?</p>
+                    <p className="target-name">{deleteModal.title}</p>
+                    <div className="confirm-delete-actions">
+                        <button
+                            className="btn-cancel"
+                            onClick={() => setDeleteModal({ isOpen: false, id: null, title: '' })}
+                            disabled={Boolean(deletingId)}
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            className="btn-delete"
+                            onClick={confirmDelete}
+                            disabled={Boolean(deletingId)}
+                        >
+                            {deletingId ? 'Deleting...' : 'Delete'}
+                        </button>
+                    </div>
+                </div>
+            </Modal>
 
             <style dangerouslySetInnerHTML={{
                 __html: `
@@ -724,6 +807,73 @@ const DashboardPage = () => {
             cursor: pointer;
             accent-color: var(--primary);
         }
+
+                .action-toast {
+                    margin: 16px 0;
+                    padding: 12px 16px;
+                    border-radius: 10px;
+                    font-size: 14px;
+                    font-weight: 600;
+                    border: 1px solid;
+                    animation: dropdownSlide 0.2s ease-out;
+                }
+
+                .action-toast.success {
+                    background: #f0fdf4;
+                    border-color: #86efac;
+                    color: #166534;
+                }
+
+                .action-toast.error {
+                    background: #fef2f2;
+                    border-color: #fecaca;
+                    color: #991b1b;
+                }
+
+                .confirm-delete-content p {
+                    margin: 0;
+                    color: var(--text-main);
+                    font-size: 15px;
+                }
+
+                .confirm-delete-content .target-name {
+                    margin-top: 8px;
+                    color: var(--text-muted);
+                    font-size: 13px;
+                }
+
+                .confirm-delete-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 10px;
+                    margin-top: 20px;
+                }
+
+                .btn-cancel,
+                .btn-delete {
+                    border-radius: 8px;
+                    padding: 10px 14px;
+                    font-weight: 600;
+                    font-size: 14px;
+                }
+
+                .btn-cancel {
+                    background: white;
+                    border: 1px solid var(--border-color);
+                    color: var(--text-main);
+                }
+
+                .btn-delete {
+                    background: #ef4444;
+                    border: 1px solid #ef4444;
+                    color: white;
+                }
+
+                .btn-cancel:disabled,
+                .btn-delete:disabled {
+                    opacity: 0.7;
+                    cursor: not-allowed;
+                }
       ` }} />
         </Layout>
     );

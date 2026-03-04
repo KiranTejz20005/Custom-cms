@@ -4,10 +4,14 @@ const getEnv = (key, defaultValue = null) => {
     return import.meta.env[key] || defaultValue;
 };
 
-const XANO_BASE_URL = getEnv('VITE_XANO_BASE_URL');
-const XANO_COURSES_BASE_URL = getEnv('VITE_XANO_COURSES_BASE_URL') || XANO_BASE_URL;
+const DEFAULT_XANO_BASE_URL = 'https://x8ki-letl-twmt.n7.xano.io/api:j1bkW6GC';
+
+const XANO_BASE_URL = getEnv('VITE_XANO_BASE_URL', DEFAULT_XANO_BASE_URL);
+const XANO_COURSES_BASE_URL = getEnv('VITE_XANO_COURSES_BASE_URL', DEFAULT_XANO_BASE_URL) || XANO_BASE_URL;
 const XANO_MEMBERS_BASE_URL = getEnv('VITE_XANO_MEMBERS_BASE_URL') || XANO_BASE_URL;
 const XANO_API_KEY = getEnv('VITE_XANO_API_KEY');
+const RAW_HTTP_TIMEOUT = Number(getEnv('VITE_HTTP_TIMEOUT_MS', 30000));
+const HTTP_TIMEOUT_MS = Number.isFinite(RAW_HTTP_TIMEOUT) && RAW_HTTP_TIMEOUT > 0 ? RAW_HTTP_TIMEOUT : 30000;
 
 const endpoints = {
     members: {
@@ -42,7 +46,7 @@ const config = {
     },
     endpoints,
     http: {
-        timeout: 10000,
+        timeout: HTTP_TIMEOUT_MS,
         headers: {
             'Content-Type': 'application/json',
             ...(XANO_API_KEY && { 'Authorization': `Bearer ${XANO_API_KEY}` }),
