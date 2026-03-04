@@ -37,11 +37,27 @@ const DashboardPage = () => {
     const gradeDropdownRef = React.useRef(null);
 
     useEffect(() => {
+        const sortGradesAscending = (gradeList) => {
+            return [...gradeList].sort((a, b) => {
+                const aValue = Number(String(a?.name || a?.grade_name || a?.id || '').replace(/\D/g, ''));
+                const bValue = Number(String(b?.name || b?.grade_name || b?.id || '').replace(/\D/g, ''));
+
+                if (Number.isFinite(aValue) && Number.isFinite(bValue) && aValue !== bValue) {
+                    return aValue - bValue;
+                }
+
+                return String(a?.name || a?.grade_name || a?.id || '').localeCompare(
+                    String(b?.name || b?.grade_name || b?.id || '')
+                );
+            });
+        };
+
         const fetchMeta = async () => {
             try {
                 const [sRes, gRes] = await Promise.all([getSchools(), getGrades()]);
                 setSchools(Array.isArray(sRes) ? sRes : (sRes.data || []));
-                setGrades(Array.isArray(gRes) ? gRes : (gRes.data || []));
+                const rawGrades = Array.isArray(gRes) ? gRes : (gRes.data || []);
+                setGrades(sortGradesAscending(rawGrades));
             } catch (err) {
                 console.error("Meta fetch error", err);
             }
