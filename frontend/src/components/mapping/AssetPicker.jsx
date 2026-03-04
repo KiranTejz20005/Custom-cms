@@ -27,6 +27,7 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
     const selectedGrades = normalizeNumberArray(selectedFilters?.gradeIds || []);
     const selectedSchools = normalizeNumberArray(selectedFilters?.schoolIds || []);
     const selectedUserType = String(selectedFilters?.userType || '').toLowerCase();
+    const isSchoolUserGroup = selectedUserType === 'school';
 
     const selectedCategoryNames = (selectedFilters?.selectedAssets || [])
         .filter((asset) => asset.type === 'Categories')
@@ -170,10 +171,27 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
         all: 'All User Types',
         Premium: 'Premium',
         Ultra: 'Ultra',
-        School: 'Schools',
+        School: 'School',
     }[selectedFilters?.userType] || selectedFilters?.userType || '—';
 
     const mappingTypeLabel = selectedFilters?.assignmentMode || '—';
+
+    const schoolLabel = (() => {
+        if (!isSchoolUserGroup) return '—';
+
+        if (selectedSchools.length === 0) return 'Choose School...';
+
+        const selectedSchoolNames = (schools || [])
+            .filter((school) => selectedSchools.includes(normalizeNumber(school?.id)))
+            .map((school) => String(school?.name || school?.title || '').trim())
+            .filter(Boolean);
+
+        if (selectedSchoolNames.length > 0) {
+            return selectedSchoolNames.join(', ');
+        }
+
+        return `${selectedSchools.length} School(s) Selected`;
+    })();
 
     const gradeLabel = (() => {
         const ids = selectedFilters?.gradeIds || [];
@@ -251,6 +269,15 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                         <span className="wm-filter-value">{userTypeLabel}</span>
                     </div>
                 </div>
+
+                {isSchoolUserGroup && (
+                    <div className="wm-filter-col">
+                        <span className="wm-filter-label">Select Schools</span>
+                        <div className="wm-filter-box">
+                            <span className="wm-filter-value">{schoolLabel}</span>
+                        </div>
+                    </div>
+                )}
 
                 <div className="wm-filter-col">
                     <span className="wm-filter-label">Select Grades</span>

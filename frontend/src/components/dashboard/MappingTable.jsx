@@ -17,7 +17,16 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
 
   const getCategoryDisplay = (mapping) => {
     if (!mapping) return '—';
-    return mapping.category || mapping.content_type || '—';
+    const preferredCategory =
+      mapping.category_name ||
+      mapping.content_category ||
+      mapping.course_category ||
+      mapping.category;
+
+    const normalized = String(preferredCategory || '').trim();
+    if (normalized) return normalized;
+
+    return mapping.content_type || '—';
   };
 
   const getDisplayId = (mapping) => {
@@ -127,13 +136,8 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
                 <td>
                   <div className="category-stack">
                     <span className={`type-tag tag-${getTypeClass(m)}`}>
-                      {(m.content_type || '—').toUpperCase()}
+                      {getCategoryDisplay(m)}
                     </span>
-                    {String(m.category || '').trim() && (
-                      <span className="subject-tag">
-                        {m.category}
-                      </span>
-                    )}
                   </div>
                 </td>
                 <td className="audience-cell text-muted">
@@ -236,7 +240,6 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
         .type-tag {
           font-size: 11px;
           font-weight: 700;
-          text-transform: uppercase;
           padding: 4px 10px;
           border-radius: 6px;
         }
