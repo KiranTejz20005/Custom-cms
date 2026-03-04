@@ -328,15 +328,145 @@ const MappingControlPage = ({ mode }) => {
   if (success) {
     return (
       <Layout title="Mapping Control Center">
-        <div className="success-toast-page">
-          <div className="success-toast-card animate-fade-in">
-            <div className="success-icon">✓</div>
-            <div className="success-text">
-              <strong>Mapped successfully!</strong>
-              <span>Content will be available to users within 5–10 seconds.</span>
+        <div className="success-overlay animate-fade-in">
+          <div className="success-popup">
+            {/* Animated checkmark */}
+            <div className="success-circle">
+              <svg viewBox="0 0 52 52" className="success-svg">
+                <circle cx="26" cy="26" r="25" fill="none" className="success-circle-bg" />
+                <path fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" className="success-checkmark" />
+              </svg>
             </div>
+
+            <h2 className="success-heading">Mapped Successfully!</h2>
+            <p className="success-subtext">
+              Your content has been mapped.<br />
+              It will be available to users within <strong>5–10 seconds</strong>.
+            </p>
+
+            <div className="success-progress">
+              <div className="success-progress-bar"></div>
+            </div>
+            <p className="success-redirect-hint">Redirecting in 3 seconds...</p>
           </div>
         </div>
+
+        <style dangerouslySetInnerHTML={{
+          __html: `
+          .success-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(15, 23, 42, 0.55);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+          }
+
+          .success-popup {
+            background: white;
+            border-radius: 24px;
+            padding: 52px 48px;
+            max-width: 440px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 32px 64px -12px rgba(0,0,0,0.25);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 16px;
+            animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
+          }
+
+          @keyframes popIn {
+            from { opacity: 0; transform: scale(0.8); }
+            to   { opacity: 1; transform: scale(1); }
+          }
+
+          .success-circle {
+            width: 88px;
+            height: 88px;
+            margin-bottom: 8px;
+          }
+
+          .success-svg {
+            width: 100%;
+            height: 100%;
+          }
+
+          .success-circle-bg {
+            stroke: #22c55e;
+            stroke-width: 2.5;
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            animation: drawCircle 0.6s ease forwards 0.1s;
+          }
+
+          .success-checkmark {
+            stroke: #22c55e;
+            stroke-width: 3;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: drawCheck 0.4s ease forwards 0.65s;
+          }
+
+          @keyframes drawCircle {
+            to { stroke-dashoffset: 0; }
+          }
+
+          @keyframes drawCheck {
+            to { stroke-dashoffset: 0; }
+          }
+
+          .success-heading {
+            font-size: 26px;
+            font-weight: 800;
+            color: #111827;
+            margin: 0;
+            letter-spacing: -0.5px;
+          }
+
+          .success-subtext {
+            font-size: 15px;
+            color: #6b7280;
+            margin: 0;
+            line-height: 1.6;
+          }
+
+          .success-subtext strong {
+            color: #111827;
+          }
+
+          .success-progress {
+            width: 100%;
+            height: 4px;
+            background: #f3f4f6;
+            border-radius: 99px;
+            overflow: hidden;
+            margin-top: 8px;
+          }
+
+          .success-progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #16a34a);
+            border-radius: 99px;
+            animation: progressFill 3s linear forwards;
+          }
+
+          @keyframes progressFill {
+            from { width: 0%; }
+            to   { width: 100%; }
+          }
+
+          .success-redirect-hint {
+            font-size: 12px;
+            color: #9ca3af;
+            margin: 0;
+          }
+        `}} />
       </Layout>
     );
   }
