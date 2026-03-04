@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Users, Info, ChevronDown } from 'lucide-react';
 import { getGrades, getSchools, getUserCount } from '../../services/api';
 
@@ -6,6 +6,18 @@ const AudienceSelection = ({ data, updateData }) => {
     const [grades, setGrades] = useState([]);
     const [schools, setSchools] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [isGradeDropdownOpen, setIsGradeDropdownOpen] = useState(false);
+    const gradeDropdownRef = useRef(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event) => {
+            if (gradeDropdownRef.current && !gradeDropdownRef.current.contains(event.target)) {
+                setIsGradeDropdownOpen(false);
+            }
+        };
+        document.addEventListener("mousedown", handleClickOutside);
+        return () => document.removeEventListener("mousedown", handleClickOutside);
+    }, []);
 
     useEffect(() => {
         const loadData = async () => {
@@ -50,21 +62,26 @@ const AudienceSelection = ({ data, updateData }) => {
         updateCount();
     }, [data.userType, data.gradeIds, data.schoolId]);
 
-    const userTypes = ["Premium", "Ultra", "Basic", "School", "All"];
+    const userTypes = [
+        { value: 'all', label: 'All User Type' },
+        { value: 'Premium', label: 'Premium Type' },
+        { value: 'Ultra', label: 'Ultra Type' },
+        { value: 'School', label: 'Schools Type' }
+    ];
 
     return (
         <div className="step-content">
             <div className="form-group animate-fade-in">
-                <label>User Type</label>
+                <label>Select User</label>
                 <div className="select-wrapper">
                     <select
                         value={data.userType}
                         onChange={(e) => updateData({ userType: e.target.value })}
                         className="form-select"
                     >
-                        <option value="">Select User Type</option>
+                        <option value="">Select</option>
                         {userTypes.map(type => (
-                            <option key={type} value={type}>{type}</option>
+                            <option key={type.value} value={type.value}>{type.label}</option>
                         ))}
                     </select>
                     <ChevronDown className="select-icon" size={18} />
@@ -74,24 +91,67 @@ const AudienceSelection = ({ data, updateData }) => {
             {data.userType === 'School' && (
                 <>
                     <div className="form-row animate-fade-in" style={{ animationDelay: '0.1s' }}>
-                        <div className="form-group">
+                        <div className="form-group" ref={gradeDropdownRef}>
                             <label>Select Grade</label>
-                            <div className="select-wrapper">
-                                <select
-                                    multiple
-                                    value={data.gradeIds}
-                                    onChange={(e) => {
-                                        const values = Array.from(e.target.selectedOptions, option => parseInt(option.value));
-                                        updateData({ gradeIds: values });
-                                    }}
-                                    className="form-select multi-select"
-                                >
-                                    {grades.map(grade => (
-                                        <option key={grade.id} value={grade.number}>{grade.label}</option>
-                                    ))}
-                                </select>
+                            <div
+                                className={`custom-select \${isGradeDropdownOpen ? 'open' : ''}`}
+                                onClick={() => setIsGradeDropdownOpen(!isGradeDropdownOpen)}
+                                style={{ cursor: 'pointer', border: '1px solid var(--border-color)', padding: '12px 16px', borderRadius: 'var(--radius-md)', background: 'white', position: 'relative' }}
+                            >
+                                <div style={{ width: '100%', fontSize: '15px' }}>
+                                    {data.gradeIds.length === 0
+                                        ? 'Choose Grade...'
+                                        : data.gradeIds.length === grades.length && grades.length > 0
+                                            ? 'All Grades'
+                                            : `\${data.gradeIds.length} Grade(s) Selected`}
+                                </div>
+                                <ChevronDown size={16} style={{
+                                    position: 'absolute', right: '16px', top: '50%',
+                                    transform: `translateY(-50%) \${isGradeDropdownOpen ? 'rotate(180deg)' : 'none'}`,
+                                    transition: 'transform 0.2s',
+                                    pointerEvents: 'none'
+                                }} />
                             </div>
-                            <p className="field-hint">Hold Ctrl/Cmd to select multiple</p>
+
+                            {isGradeDropdownOpen && (
+                                <div className="custom-dropdown-menu">
+                                    <label className="dropdown-checkbox-item">
+                                        <input
+                                            type="checkbox"
+                                            checked={data.gradeIds.length === grades.length && grades.length > 0}
+                                            onChange={(e) => {
+                                                if (e.target.checked) {
+                                                    updateData({ gradeIds: grades.map(g => g.number) });
+                                                } else {
+                                                    updateData({ gradeIds: [] });
+                                                }
+                                            }}
+                                        />
+                                        <span>Select All</span>
+                                    </label>
+
+                                    {grades.map(grade => (
+                                        <label key={grade.id} className="dropdown-checkbox-item">
+                                            <input
+                                                type="checkbox"
+                                                checked={data.gradeIds.includes(grade.number)}
+                                                onChange={(e) => {
+                                                    const isChecked = e.target.checked;
+                                                    let newGrades = [];
+                                                    if (isChecked) {
+                                                        newGrades = [...data.gradeIds, grade.number];
+                                                    } else {
+                                                        newGrades = data.gradeIds.filter(id => id !== grade.number);
+                                                    }
+                                                    updateData({ gradeIds: newGrades });
+                                                }}
+                                            />
+                                            <span>{grade.label}</span>
+                                        </label>
+                                    ))}
+                                </div>
+                            )}
+                            <p className="field-hint">Select one or more grades</p>
                         </div>
 
                         <div className="form-group">
@@ -141,6 +201,52 @@ const AudienceSelection = ({ data, updateData }) => {
           display: flex;
           flex-direction: column;
           gap: 8px;
+          position: relative;
+        }
+
+        .custom-dropdown-menu {
+          position: absolute;
+          top: calc(100% + 4px);
+          left: 0;
+          right: 0;
+          background: white;
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-md);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          z-index: 50;
+          max-height: 250px;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .dropdown-checkbox-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 16px;
+          cursor: pointer;
+          transition: background 0.15s;
+          font-size: 15px;
+          color: var(--text-main);
+        }
+
+        .dropdown-checkbox-item:hover {
+          background: #f8fafc;
+        }
+
+        .dropdown-checkbox-item input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          cursor: pointer;
+          accent-color: var(--primary);
+        }
+
+        .dropdown-checkbox-item:first-child {
+          border-bottom: 1px solid var(--border-color);
+          font-weight: 600;
         }
 
         .form-row {

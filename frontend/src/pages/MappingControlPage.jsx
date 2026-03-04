@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, Plus, Users, Layers, Info } from 'lucide-react';
 import Layout from '../components/common/Layout';
@@ -22,6 +22,19 @@ const MappingControlPage = ({ mode }) => {
     courses: true,
     workshops: true
   });
+
+  const [isGradeDropdownOpen, setIsGradeDropdownOpen] = useState(false);
+  const gradeDropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (gradeDropdownRef.current && !gradeDropdownRef.current.contains(event.target)) {
+        setIsGradeDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const [formData, setFormData] = useState({
     userType: '',
@@ -194,7 +207,7 @@ const MappingControlPage = ({ mode }) => {
       const isAllUserGroups = rawUserType === 'all' || formData.userType === 'All User Groups';
       const subscriptionType = isAllUserGroups
         ? undefined
-        : (rawUserType === 'school' || formData.userType === 'Select School' ? 'school' : rawUserType);
+        : (rawUserType === 'school' || formData.userType === 'Select School' ? 'premium' : rawUserType);
 
       const payload = {
         content_type: contentType,
@@ -271,24 +284,22 @@ const MappingControlPage = ({ mode }) => {
               <label>Mapping Type</label>
               <div className="custom-select">
                 <select value={formData.assignmentMode} onChange={(e) => setFormData({ ...formData, assignmentMode: e.target.value })}>
-                  <option value="" disabled hidden>Select Mapping Type...</option>
-                  <option value="all">All User Groups</option>
-                  <option value="Premium">Premium</option>
-                  <option value="Ultra">Ultra</option>
-                  <option value="School">Select Schools</option>
+                  <option value="" disabled hidden>Select</option>
+                  <option value="User">User</option>
+                  <option value="Asset">Asset</option>
                 </select>
                 <ChevronDown size={16} />
               </div>
             </div>
             <div className="filter-group">
-              <label>Select User Group</label>
+              <label>Select User</label>
               <div className="custom-select">
                 <select value={formData.userType} onChange={(e) => setFormData({ ...formData, userType: e.target.value })}>
-                  <option value="" disabled hidden>Choose Audience...</option>
-                  <option value="all">All User Groups</option>
-                  <option value="Premium">Premium</option>
-                  <option value="Ultra">Ultra</option>
-                  <option value="School">Select School</option>
+                  <option value="" disabled hidden>Select</option>
+                  <option value="all">All User Type</option>
+                  <option value="Premium">Premium Type</option>
+                  <option value="Ultra">Ultra Type</option>
+                  <option value="School">Schools Type</option>
                 </select>
                 <ChevronDown size={16} />
               </div>
@@ -310,22 +321,65 @@ const MappingControlPage = ({ mode }) => {
                 </div>
               </div>
             )}
-            <div className="filter-group">
+            <div className="filter-group" ref={gradeDropdownRef}>
               <label>Select Grades</label>
-              <div className="custom-select">
-                <select
-                  value={formData.gradeIds?.[0] || ''}
-                  onChange={(e) => setFormData({ ...formData, gradeIds: [parseInt(e.target.value)] })}
-                >
-                  <option value="" disabled hidden>Choose Grade...</option>
-                  {grades.map(grade => (
-                    <option key={grade.id} value={grade.id}>
-                      {grade.name?.toLowerCase().includes('grade') ? grade.name : `Grade ${grade.name || grade.id}`}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown size={16} />
+              <div
+                className={`custom-select ${isGradeDropdownOpen ? 'open' : ''}`}
+                onClick={() => setIsGradeDropdownOpen(!isGradeDropdownOpen)}
+                style={{ cursor: 'pointer', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', background: '#f8fafc', width: '100%' }}
+              >
+                <div style={{ padding: '12px 16px', width: '100%', fontSize: '15px' }}>
+                  {formData.gradeIds.length === 0
+                    ? 'Choose Grade...'
+                    : formData.gradeIds.length === grades.length && grades.length > 0
+                      ? 'All Grades'
+                      : `${formData.gradeIds.length} Grade(s) Selected`}
+                </div>
+                <ChevronDown size={16} style={{
+                  position: 'absolute', right: '16px',
+                  transform: isGradeDropdownOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s',
+                  pointerEvents: 'none'
+                }} />
               </div>
+
+              {isGradeDropdownOpen && (
+                <div className="custom-dropdown-menu animate-slide-in">
+                  <label className="dropdown-checkbox-item">
+                    <input
+                      type="checkbox"
+                      checked={formData.gradeIds.length === grades.length && grades.length > 0}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          setFormData({ ...formData, gradeIds: grades.map(g => g.id) });
+                        } else {
+                          setFormData({ ...formData, gradeIds: [] });
+                        }
+                      }}
+                    />
+                    <span>Select All</span>
+                  </label>
+
+                  {grades.map(grade => (
+                    <label key={grade.id} className="dropdown-checkbox-item">
+                      <input
+                        type="checkbox"
+                        checked={formData.gradeIds.includes(grade.id)}
+                        onChange={(e) => {
+                          const isChecked = e.target.checked;
+                          setFormData(prev => {
+                            const newGrades = isChecked
+                              ? [...prev.gradeIds, grade.id]
+                              : prev.gradeIds.filter(id => id !== grade.id);
+                            return { ...prev, gradeIds: newGrades };
+                          });
+                        }}
+                      />
+                      <span>{grade.name?.toLowerCase().includes('grade') ? grade.name : `Grade ${grade.name || grade.id}`}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
           </section>
 
@@ -510,6 +564,55 @@ const MappingControlPage = ({ mode }) => {
           right: 16px;
           pointer-events: none;
           color: var(--text-muted);
+        }
+
+        .filter-group {
+          position: relative;
+        }
+
+        .custom-dropdown-menu {
+          position: absolute;
+          top: calc(100% + 4px);
+          left: 0;
+          right: 0;
+          background: white;
+          border: 1px solid var(--border-color);
+          border-radius: var(--radius-md);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          z-index: 50;
+          max-height: 300px;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .dropdown-checkbox-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 10px 16px;
+          cursor: pointer;
+          transition: background 0.15s;
+          font-size: 15px;
+          color: var(--text-main);
+        }
+
+        .dropdown-checkbox-item:hover {
+          background: #f8fafc;
+        }
+
+        .dropdown-checkbox-item input[type="checkbox"] {
+          width: 16px;
+          height: 16px;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          cursor: pointer;
+          accent-color: var(--primary);
+        }
+
+        .dropdown-checkbox-item:first-child {
+          border-bottom: 1px solid var(--border-color);
+          font-weight: 600;
         }
 
         .asset-sections {
