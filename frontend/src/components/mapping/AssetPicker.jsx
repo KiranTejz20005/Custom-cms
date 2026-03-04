@@ -1,11 +1,69 @@
 import React, { useState, useEffect } from 'react';
 import { Search, Loader2 } from 'lucide-react';
-import { getCourses, getWorkshops, getByteCategories, getBooks } from '../../services/api';
+import { getCourses, getWorkshops, getByteCategories, getBooks, getMappings } from '../../services/api';
 
 const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, schools = [], grades = [] }) => {
     const [assets, setAssets] = useState([]);
+    const [courseEntitlements, setCourseEntitlements] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+
+    const normalizeNumber = (value) => {
+        if (value == null) return null;
+        if (typeof value === 'object') {
+            const nested = value.id ?? value.school_id ?? null;
+            const asNum = Number(nested);
+            return Number.isFinite(asNum) ? asNum : null;
+        }
+        const asNum = Number(value);
+        return Number.isFinite(asNum) ? asNum : null;
+    };
+
+    const normalizeNumberArray = (values) => {
+        if (!Array.isArray(values)) return [];
+        return [...new Set(values.map(normalizeNumber).filter((v) => Number.isFinite(v)))];
+    };
+
+    const selectedGrades = normalizeNumberArray(selectedFilters?.gradeIds || []);
+    const selectedSchools = normalizeNumberArray(selectedFilters?.schoolIds || []);
+    const selectedUserType = String(selectedFilters?.userType || '').toLowerCase();
+
+    const selectedCategoryNames = (selectedFilters?.selectedAssets || [])
+        .filter((asset) => asset.type === 'Categories')
+        .map((asset) => String(asset.category_name || asset.title || asset.name || '').trim())
+        .filter(Boolean);
+
+    const matchesAudience = (entitlement) => {
+        const entitlementSchool = normalizeNumber(entitlement?.school ?? entitlement?.school_id) || 0;
+        const subscription = String(entitlement?.subscription_type || '').toLowerCase();
+
+        if (selectedUserType === 'school') {
+            if (entitlementSchool <= 0) return false;
+            if (!(subscription === 'premium' || subscription === 'school')) return false;
+        } else if (selectedUserType === 'all' || selectedUserType === '') {
+            if (subscription) return false;
+        } else if (subscription !== selectedUserType) {
+            return false;
+        }
+
+        const entitlementGrades = Array.isArray(entitlement?.grade_ids)
+            ? normalizeNumberArray(entitlement.grade_ids)
+            : normalizeNumberArray(entitlement?.grade_id != null ? [entitlement.grade_id] : []);
+        if (selectedGrades.length > 0) {
+            const entitlementGradeSet = [...new Set(entitlementGrades)].sort((a, b) => a - b);
+            const selectedGradeSet = [...new Set(selectedGrades)].sort((a, b) => a - b);
+            if (entitlementGradeSet.length !== selectedGradeSet.length) return false;
+            if (!selectedGradeSet.every((gradeId, index) => entitlementGradeSet[index] === gradeId)) return false;
+        }
+
+        if (selectedSchools.length > 0) {
+            if (!selectedSchools.includes(entitlementSchool)) return false;
+        } else if (entitlementSchool > 0) {
+            return false;
+        }
+
+        return true;
+    };
 
     useEffect(() => {
         const fetchAssets = async () => {
@@ -13,10 +71,20 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
             try {
                 let res;
                 switch (type) {
-                    case 'Courses': res = await getCourses(); break;
+                    case 'Courses': {
+                        const [coursesRes, mappingsRes] = await Promise.all([
+                            getCourses(),
+                            getMappings(),
+                        ]);
+                        res = Array.isArray(coursesRes) ? coursesRes : (coursesRes.items || coursesRes.data || []);
+                        const mappings = Array.isArray(mappingsRes) ? mappingsRes : (mappingsRes.items || mappingsRes.data || []);
+                        setCourseEntitlements(mappings);
+                        break;
+                    }
                     case 'Workshops': {
                         const raw = await getWorkshops();
                         res = Array.isArray(raw) ? raw : (raw.items || raw.data || []);
+                        setCourseEntitlements([]);
                         break;
                     }
                     case 'Categories': {
@@ -35,11 +103,20 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                             category_name: catName,
                             content_type: 'category'
                         }));
+                        setCourseEntitlements([]);
                         break;
                     }
-                    case 'Bytes': res = await getByteCategories(); break;
-                    case 'Books': res = await getBooks(); break;
-                    default: res = [];
+                    case 'Bytes':
+                        res = await getByteCategories();
+                        setCourseEntitlements([]);
+                        break;
+                    case 'Books':
+                        res = await getBooks();
+                        setCourseEntitlements([]);
+                        break;
+                    default:
+                        res = [];
+                        setCourseEntitlements([]);
                 }
                 const data = Array.isArray(res) ? res : (res.items || res.data || []);
                 setAssets(data);
@@ -50,7 +127,7 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
             }
         };
         fetchAssets();
-    }, [type]);
+    }, [type, selectedFilters?.userType, (selectedFilters?.gradeIds || []).join(','), (selectedFilters?.schoolIds || []).join(',')]);
 
     // Filter by search & by selected categories for Courses
     const filteredAssets = assets.filter(a => {
@@ -111,6 +188,51 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
 
     const groupKeys = Object.keys(groupedAssets);
 
+    const selectedIdSet = new Set((selectedIds || []).map((id) => String(id)));
+    const courseMappingsForAudience = (type === 'Courses' ? courseEntitlements : [])
+        .filter((ent) => String(ent?.content_type || '').toLowerCase() === 'course')
+        .filter(matchesAudience);
+
+    const mappedCourseIds = new Set();
+    const mappedStatusByCourseId = new Map();
+    courseMappingsForAudience.forEach((ent) => {
+        const idCandidates = [ent?.course, ent?.content_id]
+            .map((value) => (value == null ? null : String(value)))
+            .filter(Boolean);
+        idCandidates.forEach((idValue) => {
+            mappedCourseIds.add(idValue);
+            if (!mappedStatusByCourseId.has(idValue)) {
+                mappedStatusByCourseId.set(idValue, ent?.is_active !== false);
+            }
+        });
+    });
+
+    const categoryFilteredCourses = type === 'Courses'
+        ? assets.filter((course) => {
+            if (selectedCategoryNames.length === 0) return true;
+            return selectedCategoryNames.includes(String(course.category || '').trim());
+        })
+        : [];
+
+    const searchedCourses = type === 'Courses'
+        ? categoryFilteredCourses.filter((course) => (course.title || course.name || '').toLowerCase().includes(search.toLowerCase()))
+        : [];
+
+    const mappedCourses = searchedCourses.filter((course) => mappedCourseIds.has(String(course.id)));
+    const unmappedCourses = searchedCourses.filter((course) => !mappedCourseIds.has(String(course.id)));
+
+    const unmappedByCategory = unmappedCourses.reduce((acc, course) => {
+        const category = course.category || 'Uncategorized';
+        if (!acc[category]) acc[category] = [];
+        acc[category].push(course);
+        return acc;
+    }, {});
+
+    const mappedAudienceLabel = (() => {
+        const gradeText = gradeLabel === '—' ? 'All Grades' : gradeLabel;
+        return `${userTypeLabel} • ${gradeText}`;
+    })();
+
     return (
         <div className="wm-wrapper">
 
@@ -120,7 +242,6 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                     <span className="wm-filter-label">Mapping Type</span>
                     <div className="wm-filter-box">
                         <span className="wm-filter-value">{mappingTypeLabel}</span>
-                        <span className="wm-chevron">⌄</span>
                     </div>
                 </div>
 
@@ -128,31 +249,13 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                     <span className="wm-filter-label">Select User Group</span>
                     <div className="wm-filter-box">
                         <span className="wm-filter-value">{userTypeLabel}</span>
-                        <span className="wm-chevron">⌄</span>
                     </div>
                 </div>
-
-                {(selectedFilters?.userType === 'School') && (
-                    <div className="wm-filter-col">
-                        <span className="wm-filter-label">Select Schools</span>
-                        <div className="wm-filter-box">
-                            <span className="wm-filter-value">
-                                {!selectedFilters.schoolIds?.length
-                                    ? '—'
-                                    : selectedFilters.schoolIds.length === schools.length && schools.length > 0
-                                        ? 'All Schools'
-                                        : `${selectedFilters.schoolIds.length} School(s)`}
-                            </span>
-                            <span className="wm-chevron">⌄</span>
-                        </div>
-                    </div>
-                )}
 
                 <div className="wm-filter-col">
                     <span className="wm-filter-label">Select Grades</span>
                     <div className="wm-filter-box">
                         <span className="wm-filter-value">{gradeLabel}</span>
-                        <span className="wm-chevron">⌄</span>
                     </div>
                 </div>
             </div>
@@ -173,7 +276,89 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                 {loading ? (
                     <div className="wm-state">
                         <Loader2 size={26} className="wm-spin" />
-                        <span>Loading {type}...</span>
+                        <span>{type === 'Courses' ? 'Loading courses and mappings...' : `Loading ${type}...`}</span>
+                    </div>
+                ) : type === 'Courses' ? (
+                    <div className="wm-courses-layout">
+                        <section className="wm-section wm-section-readonly">
+                            <div className="wm-section-header">
+                                <h4>Already Mapped — These courses are already assigned to this audience</h4>
+                            </div>
+                            {mappedCourses.length === 0 ? (
+                                <div className="wm-empty-inline">No courses mapped yet for this audience</div>
+                            ) : (
+                                <table className="wm-table wm-table-readonly">
+                                    <thead>
+                                        <tr>
+                                            <th>#</th>
+                                            <th>Course Name</th>
+                                            <th>Category</th>
+                                            <th>Audience</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {mappedCourses.map((course, index) => {
+                                            const statusActive = mappedStatusByCourseId.get(String(course.id)) !== false;
+                                            return (
+                                                <tr key={`mapped-${course.id}`}>
+                                                    <td>{index + 1}</td>
+                                                    <td>{course.title || course.name}</td>
+                                                    <td>{course.category || '—'}</td>
+                                                    <td>{mappedAudienceLabel}</td>
+                                                    <td>{statusActive ? 'Active' : 'Inactive'}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            )}
+                        </section>
+
+                        <section className="wm-section">
+                            <div className="wm-section-header">
+                                <h4>Available to Map</h4>
+                            </div>
+                            {unmappedCourses.length === 0 ? (
+                                <div className="wm-empty-inline">No unmapped courses available for this audience</div>
+                            ) : (
+                                Object.keys(unmappedByCategory).sort().map((categoryName) => (
+                                    <div key={categoryName} className="wm-category-block">
+                                        <p className="wm-group-title">{categoryName}</p>
+                                        <table className="wm-table">
+                                            <thead>
+                                                <tr>
+                                                    <th>#</th>
+                                                    <th>Course Name</th>
+                                                    <th>Category</th>
+                                                    <th>Select</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {unmappedByCategory[categoryName].map((course, idx) => {
+                                                    const isSelected = selectedIdSet.has(String(course.id));
+                                                    return (
+                                                        <tr key={`unmapped-${course.id}`}>
+                                                            <td>{idx + 1}</td>
+                                                            <td>{course.title || course.name}</td>
+                                                            <td>{course.category || '—'}</td>
+                                                            <td>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={isSelected}
+                                                                    onChange={() => onSelect({ ...course, type })}
+                                                                    className="wm-cb"
+                                                                />
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                ))
+                            )}
+                        </section>
                     </div>
                 ) : filteredAssets.length === 0 ? (
                     <div className="wm-state">
@@ -256,7 +441,7 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                 .wm-filter-box {
                     display: flex;
                     align-items: center;
-                    justify-content: space-between;
+                    justify-content: flex-start;
                     background: #f9fafb;
                     border: 1.5px solid #e5e7eb;
                     border-radius: 8px;
@@ -362,6 +547,77 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                     border-radius: 8px;
                     padding: 10px 12px;
                     background: #ffffff;
+                }
+
+                .wm-courses-layout {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 18px;
+                }
+
+                .wm-section {
+                    border: 1px solid #e5e7eb;
+                    border-radius: 10px;
+                    overflow: hidden;
+                    background: #fff;
+                }
+
+                .wm-section-readonly {
+                    background: #f8fafc;
+                    border-color: #e2e8f0;
+                }
+
+                .wm-section-header {
+                    padding: 12px 14px;
+                    border-bottom: 1px solid #e5e7eb;
+                    background: #f8fafc;
+                }
+
+                .wm-section-header h4 {
+                    margin: 0;
+                    font-size: 13px;
+                    font-weight: 700;
+                    color: #334155;
+                }
+
+                .wm-empty-inline {
+                    padding: 14px;
+                    font-size: 13px;
+                    color: #64748b;
+                }
+
+                .wm-category-block {
+                    border-top: 1px solid #f1f5f9;
+                }
+
+                .wm-category-block:first-of-type {
+                    border-top: none;
+                }
+
+                .wm-table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 13px;
+                }
+
+                .wm-table th,
+                .wm-table td {
+                    text-align: left;
+                    padding: 9px 12px;
+                    border-bottom: 1px solid #f1f5f9;
+                }
+
+                .wm-table th {
+                    color: #64748b;
+                    font-size: 11px;
+                    text-transform: uppercase;
+                    letter-spacing: 0.05em;
+                    font-weight: 700;
+                    background: #f8fafc;
+                }
+
+                .wm-table-readonly {
+                    opacity: 0.75;
                 }
 
                 .wm-group-title {

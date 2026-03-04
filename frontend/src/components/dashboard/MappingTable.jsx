@@ -2,6 +2,19 @@ import React from 'react';
 import { Edit2, Trash2, Calendar, Eye, AlertTriangle, CheckCircle } from 'lucide-react';
 
 const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
+  const formatGradesDisplay = (gradeIds) => {
+    const normalized = (Array.isArray(gradeIds) ? gradeIds : [gradeIds])
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value));
+
+    if (normalized.length === 0) return '';
+
+    const uniqueSorted = [...new Set(normalized)].sort((a, b) => a - b);
+    const isAllGrades = uniqueSorted.length >= 12 && uniqueSorted.every((value, index) => value === index + 1);
+
+    return isAllGrades ? 'All Grades' : uniqueSorted.join(',');
+  };
+
   const getCategoryDisplay = (mapping) => {
     if (!mapping) return '—';
     return mapping.category || mapping.content_type || '—';
@@ -73,7 +86,10 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
     }
 
     if (m.grade_ids && m.grade_ids.length > 0) {
-      text += ` • Grades ${Array.isArray(m.grade_ids) ? m.grade_ids.join(',') : m.grade_ids}`;
+      const gradesText = formatGradesDisplay(m.grade_ids);
+      if (gradesText) {
+        text += gradesText === 'All Grades' ? ' • All Grades' : ` • Grades ${gradesText}`;
+      }
     }
 
     // Check both school and school_id for compatibility
