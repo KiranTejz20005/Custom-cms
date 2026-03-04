@@ -3,6 +3,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import ErrorBoundary from './components/common/ErrorBoundary';
 import DashboardPage from './pages/DashboardPage';
 import MappingControlPage from './pages/MappingControlPage';
+import UsersPage from './pages/UsersPage';
+import SchoolsPage from './pages/SchoolsPage';
 
 function App() {
   return (
@@ -13,6 +15,8 @@ function App() {
           <Route path="/admin/mappings/view" element={<DashboardPage />} />
           <Route path="/admin/mappings/create" element={<MappingControlPage mode="create" />} />
           <Route path="/admin/mappings/edit/:id" element={<MappingControlPage mode="edit" />} />
+          <Route path="/admin/config/users" element={<UsersPage />} />
+          <Route path="/admin/config/schools" element={<SchoolsPage />} />
           <Route path="*" element={<Navigate to="/admin/mappings/view" replace />} />
         </Routes>
       </BrowserRouter>

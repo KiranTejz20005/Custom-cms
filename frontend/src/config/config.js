@@ -15,6 +15,7 @@ const endpoints = {
         getAllGrades: `${XANO_MEMBERS_BASE_URL}/get_all_grades`,
         getAllSchools: `${XANO_MEMBERS_BASE_URL}/get_all_schools`,
         countUsers: `${XANO_MEMBERS_BASE_URL}/get_all_users`,
+        updateUser: (id) => `${XANO_MEMBERS_BASE_URL}/user/${id}`,
     },
     courses: {
         getAllCourses: `${XANO_COURSES_BASE_URL}/get_all_courses`,

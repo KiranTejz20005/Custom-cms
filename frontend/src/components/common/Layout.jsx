@@ -26,7 +26,6 @@ const Layout = ({ children, title }) => {
       title: 'Configuration',
       items: [
         { name: 'Mapping', icon: Compass, path: '/admin/mappings/create' },
-        { name: 'User Groups', icon: Users, path: '/admin/config/groups' },
         { name: 'Users', icon: User, path: '/admin/config/users' },
         { name: 'Schools', icon: School, path: '/admin/config/schools' },
       ]
