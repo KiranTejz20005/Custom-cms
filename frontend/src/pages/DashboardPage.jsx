@@ -23,7 +23,7 @@ const DashboardPage = () => {
     const [filters, setFilters] = useState({
         search: '',
         assetType: searchParams.get('assetType') || '',
-        category: 'All',
+        category: ['All'],
         userType: '',
         gradeIds: [],
         schoolIds: []
@@ -223,8 +223,8 @@ const DashboardPage = () => {
             }
 
             // Client-side category filter
-            if (filters.category && filters.category !== 'All') {
-                rows = rows.filter(r => r.category === filters.category);
+            if (filters.category && filters.category.length > 0 && !filters.category.includes('All')) {
+                rows = rows.filter(r => filters.category.includes(r.category));
             }
 
             // Client-side asset type filter
@@ -313,9 +313,9 @@ const DashboardPage = () => {
         filters.userType !== '' &&
         (!isSchoolUserType || filters.schoolIds.length > 0) &&
         filters.gradeIds.length > 0 &&
-        filters.category !== '';
+        filters.category.length > 0;
 
-    const isAnyFilterSelected = filters.userType !== '' || filters.schoolIds.length > 0 || filters.gradeIds.length > 0 || filters.category !== '';
+    const isAnyFilterSelected = filters.userType !== '' || filters.schoolIds.length > 0 || filters.gradeIds.length > 0 || (filters.category.length > 0 && !filters.category.includes('All'));
 
     const handleSubmit = () => {
         if (!isFormComplete) return;
@@ -664,7 +664,7 @@ const DashboardPage = () => {
                                 <span className="combo-divider"></span>
                                 <div className="combo-trigger" onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}>
                                     <span style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b' }}>
-                                        {filters.category || 'All'}
+                                        {filters.category.includes('All') ? 'All' : (filters.category.length === 1 ? filters.category[0] : `${filters.category.length} Selected`)}
                                     </span>
                                     <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                                 </div>
@@ -675,12 +675,24 @@ const DashboardPage = () => {
                                             {categories.map(c => (
                                                 <label key={c} className={`menu-item-check ${c === 'All' ? 'all-option' : ''}`}>
                                                     <input
-                                                        type="radio"
-                                                        name="categoryFilter"
-                                                        checked={filters.category === c}
+                                                        type="checkbox"
+                                                        checked={filters.category.includes(c)}
                                                         onChange={() => {
-                                                            setFilters({ ...filters, category: c });
-                                                            setIsCategoryDropdownOpen(false);
+                                                            let newSelection;
+                                                            if (c === 'All') {
+                                                                newSelection = ['All'];
+                                                            } else {
+                                                                // Remove 'All' if it was there
+                                                                const filtered = filters.category.filter(x => x !== 'All');
+                                                                if (filtered.includes(c)) {
+                                                                    newSelection = filtered.filter(x => x !== c);
+                                                                } else {
+                                                                    newSelection = [...filtered, c];
+                                                                }
+                                                                // If empty, revert to All
+                                                                if (newSelection.length === 0) newSelection = ['All'];
+                                                            }
+                                                            setFilters({ ...filters, category: newSelection });
                                                         }}
                                                     />
                                                     <span>{c}</span>
@@ -715,7 +727,7 @@ const DashboardPage = () => {
                                 setFilters({
                                     search: '',
                                     assetType: searchParams.get('assetType') || '',
-                                    category: 'All',
+                                    category: ['All'],
                                     userType: '',
                                     gradeIds: [],
                                     schoolIds: []
