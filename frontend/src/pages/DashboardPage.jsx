@@ -23,7 +23,7 @@ const DashboardPage = () => {
     const [filters, setFilters] = useState({
         search: '',
         assetType: searchParams.get('assetType') || '',
-        category: '',
+        category: 'All',
         userType: '',
         gradeIds: [],
         schoolIds: []
@@ -117,7 +117,7 @@ const DashboardPage = () => {
                     ? rows.filter(r => normalizeContentType(r.content_type || r.category) === wantedType)
                     : rows;
 
-                const uniqueCategories = [...new Set(filteredRows.map(r => r.category).filter(Boolean))];
+                const uniqueCategories = ['All', ...new Set(filteredRows.map(r => r.category).filter(Boolean).filter(c => c !== 'All'))];
                 setCategories(uniqueCategories);
             } catch (e) {
                 console.error("Failed to fetch category names", e);
@@ -663,8 +663,8 @@ const DashboardPage = () => {
                                 <span className="combo-label">Category</span>
                                 <span className="combo-divider"></span>
                                 <div className="combo-trigger" onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}>
-                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.category ? '#1e293b' : '#64748b' }}>
-                                        {filters.category === '' ? 'Select' : filters.category === 'All' ? 'Select All' : filters.category}
+                                    <span style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b' }}>
+                                        {filters.category || 'All'}
                                     </span>
                                     <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                                 </div>
@@ -715,7 +715,7 @@ const DashboardPage = () => {
                                 setFilters({
                                     search: '',
                                     assetType: searchParams.get('assetType') || '',
-                                    category: '',
+                                    category: 'All',
                                     userType: '',
                                     gradeIds: [],
                                     schoolIds: []
