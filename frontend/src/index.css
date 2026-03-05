@@ -115,3 +115,105 @@ textarea {
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Shared Combo Select Styles */
+.combo-select {
+  display: flex !important;
+  align-items: center !important;
+  background: #f8fafc !important;
+  border-radius: 6px !important;
+  padding: 6px 14px !important;
+  height: 38px !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+.combo-label {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #1e293b !important;
+  white-space: nowrap !important;
+}
+
+.combo-divider {
+  width: 1px !important;
+  height: 20px !important;
+  background: #cbd5e1 !important;
+  margin: 0 12px !important;
+}
+
+.combo-input {
+  border: none !important;
+  background: transparent !important;
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #64748b !important;
+  outline: none !important;
+  cursor: pointer !important;
+  appearance: auto !important;
+  -webkit-appearance: auto !important;
+}
+
+.combo-trigger {
+  display: flex !important;
+  align-items: center !important;
+  cursor: pointer !important;
+}
+
+.custom-combo-menu {
+  top: calc(100% + 8px) !important;
+  min-width: 220px !important;
+}
+
+.paged-dropdown-menu {
+  position: absolute;
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.dropdown-options-list {
+  max-height: 250px;
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.dropdown-divider {
+  height: 1px;
+  background: var(--border-color);
+  margin: 4px 0;
+}
+
+.menu-item-check {
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px;
+  padding: 10px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--text-main);
+  transition: all 0.2s;
+}
+
+.menu-item-check:hover {
+  background: #f8fafc;
+  color: var(--primary);
+}
+
+.menu-item-check.all-option {
+  background: #f1f5f9;
+  font-weight: 700;
+  margin: 4px;
+  border-radius: 8px;
+}
+
+.menu-item-check input {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: var(--primary);
+}

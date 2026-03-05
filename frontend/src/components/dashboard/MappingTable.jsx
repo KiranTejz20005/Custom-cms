@@ -1,7 +1,7 @@
 import React from 'react';
 import { Edit2, Trash2, Calendar, Eye, AlertTriangle, CheckCircle } from 'lucide-react';
 
-const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
+const MappingTable = ({ mappings, onEdit, onDelete, deletingId, assetType, hideActions }) => {
   const formatGradesDisplay = (gradeIds) => {
     const normalized = (Array.isArray(gradeIds) ? gradeIds : [gradeIds])
       .map((value) => Number(value))
@@ -110,60 +110,63 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
     return text;
   };
 
+  const isWorkshop = assetType === 'workshop';
+  const idLabel = isWorkshop ? 'Workshop ID' : 'Course ID';
+  const titleLabel = isWorkshop ? 'Workshop Title' : 'Course Title';
+
   return (
     <div className="table-container">
       <table className="data-table">
         <thead>
           <tr>
-            <th>Asset</th>
-            <th>Category</th>
-            <th>Audience</th>
-            <th>Users</th>
-            <th>Status</th>
-            <th className="actions-cell">Actions</th>
+            <th style={{ textTransform: 'none' }}>{idLabel}</th>
+            <th style={{ textTransform: 'none' }}>{titleLabel}</th>
+            <th style={{ textTransform: 'none' }}>Category</th>
+            <th style={{ textTransform: 'none' }}>Grades</th>
+            <th style={{ textTransform: 'uppercase' }}>USERS</th>
+            <th style={{ textTransform: 'uppercase' }}>STATUS</th>
+            {!hideActions && <th className="actions-cell" style={{ textTransform: 'uppercase' }}>ACTIONS</th>}
           </tr>
         </thead>
         <tbody>
           {mappings.length > 0 ? (
             mappings.map((m) => (
               <tr key={m.id}>
-                <td className="asset-cell">
-                  <div className="asset-info">
-                    <span className="asset-name">{m.content_title || 'Untitled'}</span>
-                    <span className="asset-id">ID: {getDisplayId(m)}</span>
-                  </div>
+                <td className="asset-id-cell">
+                  <span style={{ color: '#3b82f6', fontWeight: '500' }}>#{getDisplayId(m)}</span>
+                </td>
+                <td className="asset-title-cell">
+                  <span style={{ color: '#3b82f6', fontWeight: '500' }}>{m.content_title || 'Untitled'}</span>
                 </td>
                 <td>
-                  <div className="category-stack">
-                    <span className={`type-tag tag-${getTypeClass(m)}`}>
-                      {getCategoryDisplay(m)}
-                    </span>
-                  </div>
+                  <span style={{ color: '#3b82f6', fontWeight: '500' }}>{getCategoryDisplay(m)}</span>
                 </td>
-                <td className="audience-cell text-muted">
-                  {getAudienceDisplay(m)}
+                <td className="grades-cell" style={{ color: '#1e293b', fontWeight: '500' }}>
+                  {formatGradesDisplay(m.grade_ids) || '—'}
                 </td>
                 <td className="user-count-cell">
-                  <span className="count-pill">{m.user_count || 0}</span>
+                  <span style={{ color: '#3b82f6', fontWeight: '500' }}>{m.user_count || 0}</span>
                 </td>
                 <td>
                   {getStatusBadge(m)}
                 </td>
-                <td className="actions-cell">
-                  <div className="action-buttons">
-                    <button className="icon-btn edit" title="Edit" onClick={() => onEdit(m.id)} disabled={deletingId === m.id}>
-                      <Edit2 size={16} />
-                    </button>
-                    <button
-                      className="icon-btn delete"
-                      title="Delete"
-                      onClick={() => onDelete(m)}
-                      disabled={deletingId === m.id}
-                    >
-                      <Trash2 size={16} className={deletingId === m.id ? 'spinning' : ''} />
-                    </button>
-                  </div>
-                </td>
+                {!hideActions && (
+                  <td className="actions-cell">
+                    <div className="action-buttons">
+                      <button className="icon-btn edit" title="Edit" onClick={() => onEdit(m.id)} disabled={deletingId === m.id}>
+                        <Edit2 size={16} />
+                      </button>
+                      <button
+                        className="icon-btn delete"
+                        title="Delete"
+                        onClick={() => onDelete(m)}
+                        disabled={deletingId === m.id}
+                      >
+                        <Trash2 size={16} className={deletingId === m.id ? 'spinning' : ''} />
+                      </button>
+                    </div>
+                  </td>
+                )}
               </tr>
             ))
           ) : (
@@ -201,7 +204,6 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId }) => {
           color: #64748b;
           font-size: 13px;
           font-weight: 600;
-          text-transform: uppercase;
           letter-spacing: 0.05em;
           border-bottom: 1px solid var(--border-color);
         }

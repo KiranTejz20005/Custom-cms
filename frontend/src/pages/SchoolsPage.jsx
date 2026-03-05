@@ -69,9 +69,12 @@ const SchoolsPage = () => {
           </div>
 
           <div className="filter-group">
-            <div className="filter-item">
-              <MapPin size={16} />
+            <div className="combo-select">
+              <MapPin size={14} style={{ color: '#64748b', marginRight: '6px' }} />
+              <span className="combo-label">City</span>
+              <span className="combo-divider"></span>
               <select
+                className="combo-input"
                 value={selectedCountry}
                 onChange={(e) => setSelectedCountry(e.target.value)}
               >

@@ -1,12 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Loader2 } from 'lucide-react';
+import { Search, Loader2, Trash2 } from 'lucide-react';
 import { getCourses, getWorkshops, getByteCategories, getBooks, getMappings } from '../../services/api';
+import MappingTable from '../dashboard/MappingTable';
+import Modal from '../common/Modal';
 
 const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, schools = [], grades = [] }) => {
     const [assets, setAssets] = useState([]);
     const [courseEntitlements, setCourseEntitlements] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [assetToDelete, setAssetToDelete] = useState(null);
+    const [passkey, setPasskey] = useState('');
 
     const normalizeNumber = (value) => {
         if (value == null) return null;
@@ -29,10 +34,11 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
     const selectedUserType = String(selectedFilters?.userType || '').toLowerCase();
     const isSchoolUserGroup = selectedUserType === 'school';
 
-    const selectedCategoryNames = (selectedFilters?.selectedAssets || [])
-        .filter((asset) => asset.type === 'Categories')
-        .map((asset) => String(asset.category_name || asset.title || asset.name || '').trim())
-        .filter(Boolean);
+    const extractList = (payload) => {
+        if (Array.isArray(payload)) return payload;
+        if (!payload || typeof payload !== 'object') return [];
+        return payload.items || payload.data || payload.results || payload.list || [];
+    };
 
     const matchesAudience = (entitlement) => {
         const entitlementSchool = normalizeNumber(entitlement?.school ?? entitlement?.school_id) || 0;
@@ -40,8 +46,9 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
 
         if (selectedUserType === 'school') {
             if (entitlementSchool <= 0) return false;
-            if (!(subscription === 'premium' || subscription === 'school')) return false;
+            if (!(subscription === 'premium' || subscription === 'school' || subscription === '')) return false;
         } else if (selectedUserType === 'all' || selectedUserType === '') {
+            if (entitlementSchool > 0) return false;
             if (subscription) return false;
         } else if (subscription !== selectedUserType) {
             return false;
@@ -51,10 +58,8 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
             ? normalizeNumberArray(entitlement.grade_ids)
             : normalizeNumberArray(entitlement?.grade_id != null ? [entitlement.grade_id] : []);
         if (selectedGrades.length > 0) {
-            const entitlementGradeSet = [...new Set(entitlementGrades)].sort((a, b) => a - b);
-            const selectedGradeSet = [...new Set(selectedGrades)].sort((a, b) => a - b);
-            if (entitlementGradeSet.length !== selectedGradeSet.length) return false;
-            if (!selectedGradeSet.every((gradeId, index) => entitlementGradeSet[index] === gradeId)) return false;
+            if (entitlementGrades.length === 0) return false;
+            if (!selectedGrades.every((gradeId) => entitlementGrades.includes(gradeId))) return false;
         }
 
         if (selectedSchools.length > 0) {
@@ -77,20 +82,20 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                             getCourses(),
                             getMappings(),
                         ]);
-                        res = Array.isArray(coursesRes) ? coursesRes : (coursesRes.items || coursesRes.data || []);
-                        const mappings = Array.isArray(mappingsRes) ? mappingsRes : (mappingsRes.items || mappingsRes.data || []);
+                        res = extractList(coursesRes);
+                        const mappings = extractList(mappingsRes);
                         setCourseEntitlements(mappings);
                         break;
                     }
                     case 'Workshops': {
                         const raw = await getWorkshops();
-                        res = Array.isArray(raw) ? raw : (raw.items || raw.data || []);
+                        res = extractList(raw);
                         setCourseEntitlements([]);
                         break;
                     }
                     case 'Categories': {
                         const coursesRes = await getCourses();
-                        const coursesData = Array.isArray(coursesRes) ? coursesRes : (coursesRes.data || []);
+                        const coursesData = extractList(coursesRes);
                         const catMap = {};
                         coursesData.forEach(c => {
                             if (c.category && !catMap[c.category]) {
@@ -119,7 +124,7 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                         res = [];
                         setCourseEntitlements([]);
                 }
-                const data = Array.isArray(res) ? res : (res.items || res.data || []);
+                const data = extractList(res);
                 setAssets(data);
             } catch (err) {
                 console.error('Failed to fetch assets', err);
@@ -225,12 +230,7 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
         });
     });
 
-    const categoryFilteredCourses = type === 'Courses'
-        ? assets.filter((course) => {
-            if (selectedCategoryNames.length === 0) return true;
-            return selectedCategoryNames.includes(String(course.category || '').trim());
-        })
-        : [];
+    const categoryFilteredCourses = type === 'Courses' ? assets : [];
 
     const searchedCourses = type === 'Courses'
         ? categoryFilteredCourses.filter((course) => (course.title || course.name || '').toLowerCase().includes(search.toLowerCase()))
@@ -255,35 +255,31 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
         <div className="wm-wrapper">
 
             {/* ── Filter Row ─────────────────────────────────── */}
-            <div className="wm-filters">
-                <div className="wm-filter-col">
-                    <span className="wm-filter-label">Mapping Type</span>
-                    <div className="wm-filter-box">
-                        <span className="wm-filter-value">{mappingTypeLabel}</span>
-                    </div>
+            <div className="wm-filters" style={{ display: 'flex', alignItems: 'center', background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', gap: '16px' }}>
+                <div className="combo-select">
+                    <span className="combo-label">Mapping Type</span>
+                    <span className="combo-divider"></span>
+                    <span className="combo-input" style={{ cursor: 'default' }}>{mappingTypeLabel}</span>
                 </div>
 
-                <div className="wm-filter-col">
-                    <span className="wm-filter-label">Select User Group</span>
-                    <div className="wm-filter-box">
-                        <span className="wm-filter-value">{userTypeLabel}</span>
-                    </div>
+                <div className="combo-select">
+                    <span className="combo-label">User Group</span>
+                    <span className="combo-divider"></span>
+                    <span className="combo-input" style={{ cursor: 'default', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{userTypeLabel}</span>
                 </div>
 
                 {isSchoolUserGroup && (
-                    <div className="wm-filter-col">
-                        <span className="wm-filter-label">Select Schools</span>
-                        <div className="wm-filter-box">
-                            <span className="wm-filter-value">{schoolLabel}</span>
-                        </div>
+                    <div className="combo-select">
+                        <span className="combo-label">Schools</span>
+                        <span className="combo-divider"></span>
+                        <span className="combo-input" style={{ cursor: 'default', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{schoolLabel}</span>
                     </div>
                 )}
 
-                <div className="wm-filter-col">
-                    <span className="wm-filter-label">Select Grades</span>
-                    <div className="wm-filter-box">
-                        <span className="wm-filter-value">{gradeLabel}</span>
-                    </div>
+                <div className="combo-select">
+                    <span className="combo-label">Grades</span>
+                    <span className="combo-divider"></span>
+                    <span className="combo-input" style={{ cursor: 'default', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }}>{gradeLabel}</span>
                 </div>
             </div>
 
@@ -310,30 +306,43 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                         <section className="wm-section wm-section-readonly">
                             <div className="wm-section-header">
                                 <h4>Already Mapped — These courses are already assigned to this audience</h4>
+                                <span className="wm-section-count">{courseMappingsForAudience.length}</span>
                             </div>
-                            {mappedCourses.length === 0 ? (
-                                <div className="wm-empty-inline">No courses mapped yet for this audience</div>
+                            {courseMappingsForAudience.length === 0 ? (
+                                <div className="wm-empty-inline">No mapped courses found for this audience.</div>
                             ) : (
-                                <table className="wm-table wm-table-readonly">
+                                <table className="wm-table wm-table-mapped">
                                     <thead>
                                         <tr>
                                             <th>#</th>
-                                            <th>Course Name</th>
-                                            <th>Category</th>
-                                            <th>Audience</th>
-                                            <th>Status</th>
+                                            <th>COURSE NAME</th>
+                                            <th>CATEGORY</th>
+                                            <th>AUDIENCE</th>
+                                            <th style={{ textAlign: 'right', textTransform: 'none' }}>Move to Bin</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {mappedCourses.map((course, index) => {
-                                            const statusActive = mappedStatusByCourseId.get(String(course.id)) !== false;
+                                        {courseMappingsForAudience.map((mapping, index) => {
+                                            const courseName = mapping.content_title || mapping.course_name || 'Untitled';
+                                            const category = mapping.content_category || mapping.category || mapping.course_category || '—';
                                             return (
-                                                <tr key={`mapped-${course.id}`}>
-                                                    <td>{index + 1}</td>
-                                                    <td>{course.title || course.name}</td>
-                                                    <td>{course.category || '—'}</td>
-                                                    <td>{mappedAudienceLabel}</td>
-                                                    <td>{statusActive ? 'Active' : 'Inactive'}</td>
+                                                <tr key={`mapped-${mapping.id}`}>
+                                                    <td style={{ color: '#64748b' }}>{index + 1}</td>
+                                                    <td style={{ color: '#64748b' }}>{courseName}</td>
+                                                    <td style={{ color: '#64748b' }}>{category}</td>
+                                                    <td style={{ color: '#64748b' }}>{mappedAudienceLabel}</td>
+                                                    <td style={{ textAlign: 'right' }}>
+                                                        <button
+                                                            className="wm-bin-btn"
+                                                            onClick={() => {
+                                                                setAssetToDelete({ id: mapping.id, name: courseName });
+                                                                setShowDeleteModal(true);
+                                                            }}
+                                                            title="Move to Bin"
+                                                        >
+                                                            <Trash2 size={16} />
+                                                        </button>
+                                                    </td>
                                                 </tr>
                                             );
                                         })}
@@ -342,12 +351,44 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                             )}
                         </section>
 
+                        {/* Confirmation Modal */}
+                        <Modal
+                            isOpen={showDeleteModal}
+                            onClose={() => setShowDeleteModal(false)}
+                            title="Move to Bin"
+                        >
+                            <div className="wm-delete-modal">
+                                <p className="wm-delete-msg">Are you sure you want to move <strong>"{assetToDelete?.name}"</strong> to Bin.</p>
+                                <p className="wm-delete-subtext">This will temporarily "Un-map" Course, you can undo this action from "Bin"</p>
+
+                                <div className="wm-passkey-section">
+                                    <label>Enter admin passkey</label>
+                                    <input
+                                        type="password"
+                                        className="wm-passkey-input"
+                                        value={passkey}
+                                        onChange={(e) => setPasskey(e.target.value)}
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+
+                                <div className="wm-delete-actions">
+                                    <button className="wm-discard-btn" onClick={() => setShowDeleteModal(false)}>Discard</button>
+                                    <button className="wm-confirm-delete-btn" onClick={() => setShowDeleteModal(false)}>
+                                        <Trash2 size={16} />
+                                        <span>Yes, move to Bin</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </Modal>
+
                         <section className="wm-section">
                             <div className="wm-section-header">
                                 <h4>Available to Map</h4>
+                                <span className="wm-section-count">{unmappedCourses.length}</span>
                             </div>
                             {unmappedCourses.length === 0 ? (
-                                <div className="wm-empty-inline">No unmapped courses available for this audience</div>
+                                <div className="wm-empty-inline">All matching courses are already mapped for this audience.</div>
                             ) : (
                                 Object.keys(unmappedByCategory).sort().map((categoryName) => (
                                     <div key={categoryName} className="wm-category-block">
@@ -598,6 +639,10 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                     padding: 12px 14px;
                     border-bottom: 1px solid #e5e7eb;
                     background: #f8fafc;
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    gap: 12px;
                 }
 
                 .wm-section-header h4 {
@@ -607,10 +652,26 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                     color: #334155;
                 }
 
+                .wm-section-count {
+                    min-width: 28px;
+                    height: 24px;
+                    padding: 0 8px;
+                    border-radius: 999px;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-size: 12px;
+                    font-weight: 700;
+                    color: #2563eb;
+                    background: #e0ecff;
+                    border: 1px solid #bfdbfe;
+                }
+
                 .wm-empty-inline {
                     padding: 14px;
                     font-size: 13px;
                     color: #64748b;
+                    background: #ffffff;
                 }
 
                 .wm-category-block {
@@ -632,6 +693,7 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                     text-align: left;
                     padding: 9px 12px;
                     border-bottom: 1px solid #f1f5f9;
+                    vertical-align: middle;
                 }
 
                 .wm-table th {
@@ -645,6 +707,43 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
 
                 .wm-table-readonly {
                     opacity: 0.75;
+                }
+
+                .wm-table tbody tr:hover {
+                    background: #f8fafc;
+                }
+
+                .wm-table-mapped th {
+                    font-size: 11px;
+                    color: #94a3b8;
+                    text-transform: uppercase;
+                    font-weight: 700;
+                    padding: 12px 14px;
+                    border-bottom: 1px solid #e2e8f0;
+                }
+
+                .wm-table-mapped td {
+                    padding: 14px;
+                    border-bottom: 1px solid #e5e7eb;
+                    font-size: 14px;
+                }
+
+                .wm-table-mapped tr:last-child td {
+                    border-bottom: none;
+                }
+
+                .wm-remove-btn {
+                    background: transparent;
+                    color: #1e293b;
+                    font-weight: 600;
+                    font-size: 13px;
+                    padding: 4px 8px;
+                    cursor: pointer;
+                    border: none; /* Added this to match the original property */
+                }
+
+                .wm-remove-btn:hover {
+                    color: #dc2626;
                 }
 
                 .wm-group-title {
@@ -717,9 +816,97 @@ const AssetPicker = ({ type, onSelect, selectedIds = [], selectedFilters, school
                     animation: wm-rotate 1s linear infinite;
                 }
 
-                @keyframes wm-rotate {
-                    from { transform: rotate(0deg); }
-                    to { transform: rotate(360deg); }
+                .wm-bin-btn {
+                    background: transparent;
+                    color: #64748b;
+                    border: none;
+                    cursor: pointer;
+                    padding: 6px;
+                    border-radius: 6px;
+                    transition: all 0.2s;
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+
+                .wm-bin-btn:hover {
+                    background: #fee2e2;
+                    color: #ef4444;
+                }
+
+                /* Delete Modal Styles */
+                .wm-delete-modal {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 16px;
+                }
+
+                .wm-delete-msg {
+                    font-size: 16px;
+                    color: #1e293b;
+                    margin: 0;
+                }
+
+                .wm-delete-subtext {
+                    font-size: 14px;
+                    color: #64748b;
+                    margin: 0;
+                }
+
+                .wm-passkey-section {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 8px;
+                    margin-top: 8px;
+                }
+
+                .wm-passkey-section label {
+                    font-size: 14px;
+                    font-weight: 500;
+                    color: #1e293b;
+                }
+
+                .wm-passkey-input {
+                    padding: 10px 12px;
+                    border-radius: 6px;
+                    border: 1px solid #10b981;
+                    background: #f8fafc;
+                    outline: none;
+                    width: 100%;
+                }
+
+                .wm-delete-actions {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 12px;
+                    margin-top: 12px;
+                }
+
+                .wm-discard-btn {
+                    padding: 10px 24px;
+                    border-radius: 6px;
+                    border: 1px solid #e2e8f0;
+                    background: white;
+                    color: #2563eb;
+                    font-weight: 600;
+                    cursor: pointer;
+                }
+
+                .wm-confirm-delete-btn {
+                    padding: 10px 20px;
+                    border-radius: 6px;
+                    background: #2563eb;
+                    color: white;
+                    font-weight: 600;
+                    cursor: pointer;
+                    display: flex;
+                    align-items: center;
+                    gap: 8px;
+                    border: none;
+                }
+
+                .wm-confirm-delete-btn:hover {
+                    background: #1d4ed8;
                 }
             `}} />
         </div>

@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import MappingTable from '../components/dashboard/MappingTable';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
-import { getMappings, deleteMapping, getSchools, getGrades } from '../services/api';
+import { getMappings, deleteMapping, getSchools, getGrades, getCourses } from '../services/api';
 import { ChevronDown, Plus, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Download, Users, School, Layers } from 'lucide-react';
 
 const DashboardPage = () => {
@@ -23,7 +23,7 @@ const DashboardPage = () => {
     const [filters, setFilters] = useState({
         search: '',
         assetType: searchParams.get('assetType') || '',
-        status: '',
+        category: '',
         userType: '',
         gradeIds: [],
         schoolIds: []
@@ -31,10 +31,22 @@ const DashboardPage = () => {
 
     const [schools, setSchools] = useState([]);
     const [grades, setGrades] = useState([]);
+    const [categories, setCategories] = useState([]);
     const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState(false);
     const [isGradeDropdownOpen, setIsGradeDropdownOpen] = useState(false);
+    const [isUserTypeDropdownOpen, setIsUserTypeDropdownOpen] = useState(false);
+    const [isCategoryDropdownOpen, setIsCategoryDropdownOpen] = useState(false);
+    const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+    const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
+
+    const [hasSubmitted, setHasSubmitted] = useState(false);
+
     const schoolDropdownRef = React.useRef(null);
     const gradeDropdownRef = React.useRef(null);
+    const userTypeDropdownRef = React.useRef(null);
+    const categoryDropdownRef = React.useRef(null);
+    const statusDropdownRef = React.useRef(null);
+    const assetDropdownRef = React.useRef(null);
 
     useEffect(() => {
         const sortGradesAscending = (gradeList) => {
@@ -65,12 +77,12 @@ const DashboardPage = () => {
         fetchMeta();
 
         const handleClickOutside = (event) => {
-            if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target)) {
-                setIsSchoolDropdownOpen(false);
-            }
-            if (gradeDropdownRef.current && !gradeDropdownRef.current.contains(event.target)) {
-                setIsGradeDropdownOpen(false);
-            }
+            if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target)) setIsSchoolDropdownOpen(false);
+            if (gradeDropdownRef.current && !gradeDropdownRef.current.contains(event.target)) setIsGradeDropdownOpen(false);
+            if (userTypeDropdownRef.current && !userTypeDropdownRef.current.contains(event.target)) setIsUserTypeDropdownOpen(false);
+            if (categoryDropdownRef.current && !categoryDropdownRef.current.contains(event.target)) setIsCategoryDropdownOpen(false);
+            if (statusDropdownRef.current && !statusDropdownRef.current.contains(event.target)) setIsStatusDropdownOpen(false);
+            if (assetDropdownRef.current && !assetDropdownRef.current.contains(event.target)) setIsAssetDropdownOpen(false);
         };
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -80,9 +92,39 @@ const DashboardPage = () => {
     useEffect(() => {
         const urlType = searchParams.get('assetType') || '';
         if (urlType !== filters.assetType) {
-            setFilters(prev => ({ ...prev, assetType: urlType }));
+            setFilters({
+                search: '',
+                assetType: urlType,
+                category: '',
+                userType: '',
+                gradeIds: [],
+                schoolIds: []
+            });
+            setHasSubmitted(false);
+            setData([]); // Clear data eagerly so there's no UI flash
         }
     }, [searchParams]);
+
+    // Fetch context-aware categories when asset type changes
+    useEffect(() => {
+        const fetchCategories = async () => {
+            try {
+                const res = await getMappings({ limit: 1000 });
+                const rows = Array.isArray(res) ? res : (Array.isArray(res?.items) ? res.items : (res?.data || []));
+
+                const wantedType = normalizeContentType(filters.assetType);
+                const filteredRows = wantedType
+                    ? rows.filter(r => normalizeContentType(r.content_type || r.category) === wantedType)
+                    : rows;
+
+                const uniqueCategories = [...new Set(filteredRows.map(r => r.category).filter(Boolean))];
+                setCategories(uniqueCategories);
+            } catch (e) {
+                console.error("Failed to fetch category names", e);
+            }
+        };
+        fetchCategories();
+    }, [filters.assetType]);
 
     // Update URL if internal type changes
     const handleAssetTypeChange = (e) => {
@@ -180,9 +222,9 @@ const DashboardPage = () => {
                 );
             }
 
-            // Client-side active filter
-            if (filters.status === 'active') {
-                rows = rows.filter(r => r.is_active);
+            // Client-side category filter
+            if (filters.category && filters.category !== 'All') {
+                rows = rows.filter(r => r.category === filters.category);
             }
 
             // Client-side asset type filter
@@ -238,8 +280,13 @@ const DashboardPage = () => {
     };
 
     useEffect(() => {
-        loadData();
-    }, [page, filters.assetType, filters.status, filters.userType, filters.gradeIds, filters.schoolIds]);
+        // Do not auto-fetch on filter changes; only on mount (to clear data if needed) and page changes
+        // But since the requirement states "No Data should be shown without selecting all filters"
+        // we keep data empty until user clicks submit.
+        if (hasSubmitted) {
+            loadData();
+        }
+    }, [page, filters.assetType]);
 
     useEffect(() => {
         if (!toast) return undefined;
@@ -249,6 +296,30 @@ const DashboardPage = () => {
 
     const handleSearch = (e) => {
         e.preventDefault();
+        if (hasSubmitted) {
+            loadData();
+        }
+    };
+
+    const isPremiumOrUltra = String(filters.userType || '').toLowerCase() === 'premium' || String(filters.userType || '').toLowerCase() === 'ultra';
+
+    // Step-by-step logic
+    const canShowSchool = isSchoolUserType;
+    const canShowGrades = (isSchoolUserType && filters.schoolIds.length > 0) || (filters.userType !== '' && !isSchoolUserType);
+    const canShowCategory = filters.gradeIds.length > 0;
+
+    // Form completeness validation
+    const isFormComplete =
+        filters.userType !== '' &&
+        (!isSchoolUserType || filters.schoolIds.length > 0) &&
+        filters.gradeIds.length > 0 &&
+        filters.category !== '';
+
+    const isAnyFilterSelected = filters.userType !== '' || filters.schoolIds.length > 0 || filters.gradeIds.length > 0 || filters.category !== '';
+
+    const handleSubmit = () => {
+        if (!isFormComplete) return;
+        setHasSubmitted(true);
         loadData();
     };
 
@@ -280,112 +351,262 @@ const DashboardPage = () => {
         navigate(`/admin/mappings/edit/${id}`);
     };
 
+    const isDashboardHome = !searchParams.get('assetType');
+
+    if (isDashboardHome) {
+        return (
+            <Layout title="Mapped Assets Dashboard">
+                <div className="dashboard-coming-soon">
+                    <div className="dashboard-coming-soon-card">
+                        <span className="coming-soon-kicker">Dashboard</span>
+                        <h1>New dashboard experience is coming soon</h1>
+                        <p>
+                            We are preparing insights, trend tracking, and better audience visibility.
+                            Until then, continue using Courses and Workshops from the left menu.
+                        </p>
+
+                        <div className="coming-soon-points">
+                            <span>Live metrics</span>
+                            <span>Audience insights</span>
+                            <span>Performance trends</span>
+                        </div>
+                    </div>
+                </div>
+
+                <style dangerouslySetInnerHTML={{
+                    __html: `
+                                            .dashboard-coming-soon {
+                                                min-height: 72vh;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                justify-content: center;
+                                                padding: 20px;
+                                            }
+
+                                            .dashboard-coming-soon-card {
+                                                width: min(760px, 100%);
+                                                background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+                                                border: 1px solid var(--border-color);
+                                                border-radius: 18px;
+                                                box-shadow: var(--shadow-sm);
+                                                padding: 56px 42px;
+                                                text-align: center;
+                                                display: flex;
+                                                flex-direction: column;
+                                                align-items: center;
+                                                gap: 16px;
+                                            }
+
+                                            .coming-soon-kicker {
+                                                display: inline-flex;
+                                                align-items: center;
+                                                justify-content: center;
+                                                height: 30px;
+                                                padding: 0 14px;
+                                                border-radius: 999px;
+                                                background: #eef2ff;
+                                                border: 1px solid #c7d2fe;
+                                                color: #4338ca;
+                                                font-size: 12px;
+                                                font-weight: 700;
+                                                text-transform: uppercase;
+                                                letter-spacing: 0.08em;
+                                            }
+
+                                            .dashboard-coming-soon h1 {
+                                                margin: 0;
+                                                font-size: 36px;
+                                                font-weight: 800;
+                                                color: var(--text-main);
+                                                letter-spacing: -0.8px;
+                                                line-height: 1.2;
+                                                max-width: 620px;
+                                            }
+
+                                            .dashboard-coming-soon p {
+                                                margin: 0;
+                                                font-size: 16px;
+                                                color: var(--text-muted);
+                                                font-weight: 500;
+                                                line-height: 1.7;
+                                                max-width: 640px;
+                                            }
+
+                                            .coming-soon-points {
+                                                margin-top: 8px;
+                                                display: flex;
+                                                flex-wrap: wrap;
+                                                align-items: center;
+                                                justify-content: center;
+                                                gap: 10px;
+                                            }
+
+                                            .coming-soon-points span {
+                                                display: inline-flex;
+                                                align-items: center;
+                                                height: 30px;
+                                                padding: 0 12px;
+                                                border-radius: 999px;
+                                                background: #f1f5f9;
+                                                border: 1px solid #e2e8f0;
+                                                color: #334155;
+                                                font-size: 12px;
+                                                font-weight: 700;
+                                                white-space: nowrap;
+                                            }
+                                        `,
+                }} />
+            </Layout>
+        );
+    }
+
     const totalPages = Math.ceil(total / limit) || 1;
 
     return (
         <Layout title="Mapped Assets Dashboard">
             <div className="dashboard-content">
-                <header className="dashboard-header animate-fade-in">
+                <form className="search-form-top animate-fade-in" onSubmit={handleSearch} style={{ position: 'relative', width: '100%', marginBottom: '20px' }}>
+                    <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: (hasSubmitted && data.length > 0) ? '#94a3b8' : '#cbd5e1', zIndex: 1 }} />
+                    <input
+                        type="text"
+                        placeholder={searchParams.get('assetType') ? `Search ${searchParams.get('assetType')}s` : "Search assets, audience..."}
+                        value={filters.search}
+                        onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                        onKeyUp={() => {
+                            if (hasSubmitted && data.length > 0) {
+                                loadData();
+                            }
+                        }}
+                        disabled={!hasSubmitted || data.length === 0}
+                        style={{
+                            width: '100%',
+                            padding: '12px 12px 12px 40px',
+                            borderRadius: '10px',
+                            border: '1px solid #e2e8f0',
+                            outline: 'none',
+                            background: (hasSubmitted && data.length > 0) ? '#ffffff' : '#f8fafc',
+                            color: (hasSubmitted && data.length > 0) ? '#1e293b' : '#94a3b8',
+                            cursor: (hasSubmitted && data.length > 0) ? 'text' : 'not-allowed',
+                            fontSize: '14px',
+                            boxShadow: 'var(--shadow-sm)'
+                        }}
+                    />
+                </form>
+
+                <header className="dashboard-header animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                     <div className="header-text">
                         <h1>{searchParams.get('assetType') ? `${searchParams.get('assetType').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Mapping` : 'Mapped Assets'}</h1>
                         <p>Manage and monitor all {searchParams.get('assetType') ? searchParams.get('assetType').replace(/_/g, ' ') : 'course'}-to-audience assignments.</p>
                     </div>
                 </header>
 
-                <section className="filter-bar animate-fade-in glass" style={{ animationDelay: '0.1s' }}>
-                    <form className="search-form" onSubmit={handleSearch}>
-                        <Search size={18} className="search-icon" />
-                        <input
-                            type="text"
-                            placeholder="Search assets, audience..."
-                            value={filters.search}
-                            onChange={(e) => {
-                                const val = e.target.value;
-                                setFilters(prev => ({ ...prev, search: val }));
-                            }}
-                            onKeyUp={() => loadData()}
-                        />
-                    </form>
-
-                    <div className="filter-group">
+                <section className="filter-bar-custom glass" style={{ position: 'relative', zIndex: 100, animationDelay: '0.1s', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                         {!searchParams.get('assetType') && (
-                            <div className="filter-item glass">
-                                <Layers size={16} />
-                                <select
-                                    value={filters.assetType}
-                                    onChange={handleAssetTypeChange}
-                                >
-                                    <option value="">All Assets</option>
-                                    <option value="course">Courses</option>
-                                    <option value="workshop">Workshops</option>
-                                    <option value="book">Books</option>
-                                    <option value="byte">Bytes</option>
-                                </select>
+                            <div className="combo-select combo-dropdown dropdown-container" ref={assetDropdownRef}>
+                                <span className="combo-label">Asset</span>
+                                <span className="combo-divider"></span>
+                                <div className="combo-trigger" onClick={() => setIsAssetDropdownOpen(!isAssetDropdownOpen)}>
+                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.assetType ? '#1e293b' : '#64748b' }}>
+                                        {filters.assetType ? filters.assetType.charAt(0).toUpperCase() + filters.assetType.slice(1) + 's' : 'All Assets'}
+                                    </span>
+                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                                </div>
+                                {isAssetDropdownOpen && (
+                                    <div className="paged-dropdown-menu custom-combo-menu">
+                                        <div className="dropdown-options-list">
+                                            {[
+                                                { label: 'All Assets', value: '' },
+                                                { label: 'Courses', value: 'course' },
+                                                { label: 'Workshops', value: 'workshop' },
+                                                { label: 'Books', value: 'book' },
+                                                { label: 'Bytes', value: 'byte' }
+                                            ].map(opt => (
+                                                <label key={opt.value} className="menu-item-check">
+                                                    <input
+                                                        type="radio"
+                                                        name="assetTypeFilter"
+                                                        checked={filters.assetType === opt.value}
+                                                        onChange={() => {
+                                                            const val = opt.value;
+                                                            setFilters({ ...filters, assetType: val });
+                                                            if (val) setSearchParams({ assetType: val });
+                                                            else setSearchParams({});
+                                                            setIsAssetDropdownOpen(false);
+                                                        }}
+                                                    />
+                                                    <span>{opt.label}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
                             </div>
                         )}
 
-                        <div className="filter-item glass">
-                            <Users size={16} />
-                            <select
-                                value={filters.userType}
-                                onChange={(e) => {
-                                    const nextUserType = e.target.value;
-                                    const shouldShowSchoolDropdown = String(nextUserType || '').toLowerCase() === 'school';
-                                    setFilters({
-                                        ...filters,
-                                        userType: nextUserType,
-                                        schoolIds: shouldShowSchoolDropdown ? filters.schoolIds : []
-                                    });
-                                    if (!shouldShowSchoolDropdown) {
-                                        setIsSchoolDropdownOpen(false);
-                                    }
-                                }}
-                            >
-                                <option value="">User Type</option>
-                                <option value="all">All User Type</option>
-                                <option value="Premium">Premium Type</option>
-                                <option value="Ultra">Ultra Type</option>
-                                <option value="School">Schools Type</option>
-                            </select>
+                        <div className="combo-select combo-dropdown dropdown-container" ref={userTypeDropdownRef}>
+                            <span className="combo-label">User Type</span>
+                            <span className="combo-divider"></span>
+                            <div className="combo-trigger" onClick={() => setIsUserTypeDropdownOpen(!isUserTypeDropdownOpen)}>
+                                <span style={{ fontSize: '13px', fontWeight: '500', color: filters.userType ? '#1e293b' : '#64748b' }}>
+                                    {filters.userType || 'Select'}
+                                </span>
+                                <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                            </div>
+                            {isUserTypeDropdownOpen && (
+                                <div className="paged-dropdown-menu custom-combo-menu">
+                                    <div className="dropdown-options-list">
+                                        {['Premium', 'Ultra', 'School'].map(t => (
+                                            <label key={t} className="menu-item-check">
+                                                <input
+                                                    type="radio"
+                                                    name="userTypeFilter"
+                                                    checked={filters.userType === t}
+                                                    onChange={() => {
+                                                        const shouldShowSchoolDropdown = t.toLowerCase() === 'school';
+                                                        setFilters(prev => ({
+                                                            ...prev,
+                                                            userType: t,
+                                                            schoolIds: shouldShowSchoolDropdown ? prev.schoolIds : [],
+                                                            gradeIds: !shouldShowSchoolDropdown ? prev.gradeIds : []
+                                                        }));
+                                                        setIsUserTypeDropdownOpen(false);
+                                                        if (!shouldShowSchoolDropdown) setIsSchoolDropdownOpen(false);
+                                                        else setIsGradeDropdownOpen(false);
+                                                    }}
+                                                />
+                                                <span>{t}</span>
+                                            </label>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
-                        {/* School Dropdown */}
-                        {isSchoolUserType && (
-                            <div className="filter-item glass dropdown-container" ref={schoolDropdownRef}>
-                                <div className="dropdown-trigger" onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}>
-                                    <School size={14} />
-                                    <span>{filters.schoolIds.length === 0 ? 'Select School' : `${filters.schoolIds.length} Schools`}</span>
-                                    <ChevronDown size={14} />
+                        {canShowSchool && (
+                            <div className="combo-select combo-dropdown dropdown-container" ref={schoolDropdownRef}>
+                                <span className="combo-label">School</span>
+                                <span className="combo-divider"></span>
+                                <div className="combo-trigger" onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}>
+                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.schoolIds.length > 0 ? '#1e293b' : '#64748b' }}>
+                                        {filters.schoolIds.length === 0 ? 'Select' : (schools.find(s => Number(s.id) === Number(filters.schoolIds[0]))?.name || 'Selected')}
+                                    </span>
+                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                                 </div>
                                 {isSchoolDropdownOpen && (
-                                    <div className="paged-dropdown-menu">
-                                        <label className="menu-item-check all-option">
-                                            <input
-                                                type="checkbox"
-                                                checked={filters.schoolIds.length === schools.length && schools.length > 0}
-                                                onChange={(e) => {
-                                                    setFilters({
-                                                        ...filters,
-                                                        schoolIds: e.target.checked ? schools.map(s => s.id) : []
-                                                    });
-                                                }}
-                                            />
-                                            <span>Select All</span>
-                                        </label>
-                                        <div className="dropdown-divider"></div>
+                                    <div className="paged-dropdown-menu custom-combo-menu">
+
                                         <div className="dropdown-options-list">
                                             {schools.map(s => (
                                                 <label key={s.id} className="menu-item-check">
                                                     <input
-                                                        type="checkbox"
-                                                        checked={filters.schoolIds.map(Number).includes(Number(s.id))}
+                                                        type="radio"
+                                                        name="schoolFilter"
+                                                        checked={filters.schoolIds.map(Number).includes(Number(s.id)) && filters.schoolIds.length === 1}
                                                         onChange={(e) => {
-                                                            const cur = [...new Set(filters.schoolIds.map(Number).filter(Number.isFinite))];
-                                                            const schoolId = Number(s.id);
-                                                            setFilters({
-                                                                ...filters,
-                                                                schoolIds: e.target.checked ? [...cur, schoolId] : cur.filter(id => id !== schoolId)
-                                                            });
+                                                            setFilters({ ...filters, schoolIds: [Number(s.id)] });
+                                                            setIsSchoolDropdownOpen(false);
                                                         }}
                                                     />
                                                     <span>{s.name}</span>
@@ -397,68 +618,108 @@ const DashboardPage = () => {
                             </div>
                         )}
 
-                        {/* Grade Dropdown */}
-                        <div className="filter-item glass dropdown-container" ref={gradeDropdownRef}>
-                            <div className="dropdown-trigger" onClick={() => setIsGradeDropdownOpen(!isGradeDropdownOpen)}>
-                                <Filter size={14} />
-                                <span>{filters.gradeIds.length === 0 ? 'All Grades' : `${filters.gradeIds.length} Grades`}</span>
-                                <ChevronDown size={14} />
-                            </div>
-                            {isGradeDropdownOpen && (
-                                <div className="paged-dropdown-menu">
-                                    <label className="menu-item-check all-option">
-                                        <input
-                                            type="checkbox"
-                                            checked={filters.gradeIds.length === grades.length && grades.length > 0}
-                                            onChange={(e) => {
-                                                setFilters({
-                                                    ...filters,
-                                                    gradeIds: e.target.checked ? grades.map(g => g.id) : []
-                                                });
-                                            }}
-                                        />
-                                        <span>Select All</span>
-                                    </label>
-                                    <div className="dropdown-divider"></div>
-                                    <div className="dropdown-options-list">
-                                        {grades.map(g => (
-                                            <label key={g.id} className="menu-item-check">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={filters.gradeIds.includes(g.id)}
-                                                    onChange={(e) => {
-                                                        const cur = filters.gradeIds;
-                                                        setFilters({
-                                                            ...filters,
-                                                            gradeIds: e.target.checked ? [...cur, g.id] : cur.filter(id => id !== g.id)
-                                                        });
-                                                    }}
-                                                />
-                                                <span>{g.name}</span>
-                                            </label>
-                                        ))}
-                                    </div>
+                        {canShowGrades && (
+                            <div className="combo-select combo-dropdown dropdown-container" ref={gradeDropdownRef}>
+                                <span className="combo-label">Grade</span>
+                                <span className="combo-divider"></span>
+                                <div className="combo-trigger" onClick={() => setIsGradeDropdownOpen(!isGradeDropdownOpen)}>
+                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.gradeIds.length > 0 ? '#1e293b' : '#64748b' }}>
+                                        {filters.gradeIds.length === 0 ? 'Select' : (grades.find(g => g.id === filters.gradeIds[0])?.name || 'Selected')}
+                                    </span>
+                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                                 </div>
-                            )}
-                        </div>
+                                {isGradeDropdownOpen && (
+                                    <div className="paged-dropdown-menu custom-combo-menu">
 
-                        <div className="filter-item glass">
-                            <select
-                                value={filters.status}
-                                onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                            >
-                                <option value="">All Statuses</option>
-                                <option value="active">Active Only</option>
-                                <option value="scheduled">Scheduled</option>
-                                <option value="expired">Expired</option>
-                            </select>
-                        </div>
+                                        <div className="dropdown-options-list">
+                                            {grades.map(g => (
+                                                <label key={g.id} className="menu-item-check">
+                                                    <input
+                                                        type="radio"
+                                                        name="gradeFilter"
+                                                        checked={filters.gradeIds.includes(g.id) && filters.gradeIds.length === 1}
+                                                        onChange={(e) => {
+                                                            setFilters({ ...filters, gradeIds: [g.id] });
+                                                            setIsGradeDropdownOpen(false);
+                                                        }}
+                                                    />
+                                                    <span>{g.name}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
-                        <button className="icon-btn refresh glass" onClick={loadData} title="Refresh data">
-                            <RefreshCw size={18} className={loading ? 'spinning' : ''} />
-                        </button>
+                        {canShowCategory && (
+                            <div className="combo-select combo-dropdown dropdown-container" ref={categoryDropdownRef}>
+                                <span className="combo-label">Category</span>
+                                <span className="combo-divider"></span>
+                                <div className="combo-trigger" onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}>
+                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.category ? '#1e293b' : '#64748b' }}>
+                                        {filters.category === '' ? 'Select' : filters.category === 'All' ? 'Select All' : filters.category}
+                                    </span>
+                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                                </div>
+                                {isCategoryDropdownOpen && (
+                                    <div className="paged-dropdown-menu custom-combo-menu">
+
+                                        <div className="dropdown-options-list">
+                                            {categories.map(c => (
+                                                <label key={c} className="menu-item-check">
+                                                    <input
+                                                        type="radio"
+                                                        name="categoryFilter"
+                                                        checked={filters.category === c}
+                                                        onChange={() => {
+                                                            setFilters({ ...filters, category: c });
+                                                            setIsCategoryDropdownOpen(false);
+                                                        }}
+                                                    />
+                                                    <span>{c}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <button
+                            className="btn btn-primary"
+                            style={{
+                                padding: '8px 20px', borderRadius: '6px', fontSize: '13.5px', fontWeight: '600', border: 'none',
+                                opacity: isFormComplete ? 1 : 0.4, cursor: isFormComplete ? 'pointer' : 'not-allowed',
+                                background: '#2563eb', color: 'white'
+                            }}
+                            disabled={!isFormComplete}
+                            onClick={handleSubmit}
+                        >Submit</button>
+                        <button
+                            className="btn btn-secondary"
+                            style={{
+                                padding: '8px 20px', borderRadius: '6px', fontSize: '13.5px', background: 'transparent', border: '1px solid #e2e8f0', color: '#64748b', fontWeight: '500',
+                                opacity: isAnyFilterSelected ? 1 : 0.4, cursor: isAnyFilterSelected ? 'pointer' : 'not-allowed'
+                            }}
+                            disabled={!isAnyFilterSelected}
+                            onClick={() => {
+                                setFilters({
+                                    search: '',
+                                    assetType: searchParams.get('assetType') || '',
+                                    category: '',
+                                    userType: '',
+                                    gradeIds: [],
+                                    schoolIds: []
+                                });
+                                setHasSubmitted(false);
+                            }}
+                        >Reset</button>
                     </div>
                 </section>
+
 
                 {toast && (
                     <div className={`action-toast ${toast.type === 'error' ? 'error' : 'success'}`}>
@@ -480,8 +741,14 @@ const DashboardPage = () => {
                     </div>
                 )}
 
-                <div className="dashboard-main animate-fade-in glass" style={{ animationDelay: '0.2s', padding: '1px', borderRadius: 'var(--radius-lg)' }}>
-                    {loading ? (
+                <div className="dashboard-main animate-fade-in glass" style={{ position: 'relative', zIndex: 1, animationDelay: '0.2s', padding: '1px', borderRadius: 'var(--radius-lg)' }}>
+                    {!hasSubmitted ? (
+                        <div className="empty-state" style={{ padding: '80px 0', textAlign: 'center', color: '#64748b' }}>
+                            <Layers size={48} style={{ opacity: 0.2, marginBottom: '16px', color: '#64748b' }} />
+                            <h3 style={{ fontSize: '18px', color: '#1e293b', marginBottom: '8px', fontWeight: '600' }}>Select Filters to Continue</h3>
+                            <p style={{ fontSize: '14px', maxWidth: '400px', margin: '0 auto' }}>Please select the user type, school, grades, and category from the top bar to view mapped assets.</p>
+                        </div>
+                    ) : loading ? (
                         <div className="loading-state">
                             <div className="spinner"></div>
                             <p>Fetching mappings...</p>
@@ -490,6 +757,7 @@ const DashboardPage = () => {
                         <>
                             <MappingTable
                                 mappings={data}
+                                assetType={searchParams.get('assetType')}
                                 onEdit={handleEdit}
                                 onDelete={handleDelete}
                                 deletingId={deletingId}
@@ -682,6 +950,52 @@ const DashboardPage = () => {
 
         .filter-item.dropdown-container {
           position: relative;
+        }
+
+        .combo-select {
+          display: flex;
+          align-items: center;
+          background: #f8fafc;
+          border-radius: 6px;
+          padding: 6px 14px;
+          height: 38px;
+        }
+
+        .combo-label {
+          font-size: 13px;
+          font-weight: 500;
+          color: #1e293b;
+          white-space: nowrap;
+        }
+
+        .combo-divider {
+          width: 1px;
+          height: 20px;
+          background: #cbd5e1;
+          margin: 0 12px;
+        }
+
+        .combo-input {
+          border: none;
+          background: transparent;
+          font-size: 13px;
+          font-weight: 500;
+          color: #64748b;
+          outline: none;
+          cursor: pointer;
+          appearance: auto;
+          -webkit-appearance: auto;
+        }
+
+        .combo-trigger {
+          display: flex;
+          align-items: center;
+          cursor: pointer;
+        }
+
+        .custom-combo-menu {
+          top: calc(100% + 8px);
+          min-width: 220px;
         }
 
         .icon-btn.refresh {

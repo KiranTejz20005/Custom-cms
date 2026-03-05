@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { ChevronDown, Plus, Users, Layers, Info } from 'lucide-react';
+import { ChevronDown, Plus, Users, Layers, Info, Trash2 } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
 import AssetPicker from '../components/mapping/AssetPicker';
@@ -13,7 +13,6 @@ const MappingControlPage = ({ mode }) => {
   const [error, setError] = useState(null);
   const [warningToast, setWarningToast] = useState(null);
   const [metaWarning, setMetaWarning] = useState(null);
-  const [success, setSuccess] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [pickerType, setPickerType] = useState(null);
   const [countingUsers, setCountingUsers] = useState(false);
@@ -22,10 +21,18 @@ const MappingControlPage = ({ mode }) => {
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [duplicateModalMessage, setDuplicateModalMessage] = useState('');
   const [expandedSections, setExpandedSections] = useState({
-    categories: true,
     courses: true,
     workshops: true
   });
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [assetToDelete, setAssetToDelete] = useState(null);
+  const [passkey, setPasskey] = useState('');
+
+  const [isMappingTypeDropdownOpen, setIsMappingTypeDropdownOpen] = useState(false);
+  const mappingTypeDropdownRef = useRef(null);
+
+  const [isUserTypeDropdownOpen, setIsUserTypeDropdownOpen] = useState(false);
+  const userTypeDropdownRef = useRef(null);
 
   const [isGradeDropdownOpen, setIsGradeDropdownOpen] = useState(false);
   const gradeDropdownRef = useRef(null);
@@ -40,6 +47,12 @@ const MappingControlPage = ({ mode }) => {
       }
       if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target)) {
         setIsSchoolDropdownOpen(false);
+      }
+      if (mappingTypeDropdownRef.current && !mappingTypeDropdownRef.current.contains(event.target)) {
+        setIsMappingTypeDropdownOpen(false);
+      }
+      if (userTypeDropdownRef.current && !userTypeDropdownRef.current.contains(event.target)) {
+        setIsUserTypeDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -58,6 +71,77 @@ const MappingControlPage = ({ mode }) => {
     assignmentMode: '',
     notes: ''
   });
+
+  const isMappingTypeSelected = String(formData.assignmentMode || '').trim() !== '';
+
+  const getSelectedSchoolLabel = () => {
+    if (!formData.schoolIds || formData.schoolIds.length === 0) return 'Choose School...';
+
+    const names = formData.schoolIds
+      .map((id) => schools.find((school) => Number(school.id) === Number(id))?.name)
+      .filter(Boolean);
+
+    return names.length > 0 ? names.join(', ') : `${formData.schoolIds.length} School(s) Selected`;
+  };
+
+  const getSelectedGradeLabel = () => {
+    if (!formData.gradeIds || formData.gradeIds.length === 0) return 'Choose Grade...';
+
+    const names = formData.gradeIds
+      .map((id) => {
+        const grade = grades.find((item) => Number(item.id) === Number(id));
+        if (!grade) return null;
+        return grade.name?.toLowerCase().includes('grade') ? grade.name : `Grade ${grade.name || grade.id}`;
+      })
+      .filter(Boolean);
+
+    return names.length > 0 ? names.join(', ') : `${formData.gradeIds.length} Grade(s) Selected`;
+  };
+
+  const formatMappedDate = (timestamp) => {
+    if (!timestamp) return '—';
+
+    // Handle Xano timestamp format (milliseconds or ISO string)
+    let date;
+    if (typeof timestamp === 'number') {
+      date = new Date(timestamp);
+    } else {
+      // Replace space with T for better ISO parsing if needed
+      const normalizedString = String(timestamp).replace(' ', 'T');
+      date = new Date(normalizedString);
+    }
+
+    if (isNaN(date.getTime())) return '—';
+
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / (1000 * 60));
+
+    // For very recent mapping (within 2 mins), show "Just now"
+    if (diffMins >= 0 && diffMins < 2) {
+      return 'Just now';
+    }
+
+    const isToday = date.getDate() === now.getDate() &&
+      date.getMonth() === now.getMonth() &&
+      date.getFullYear() === now.getFullYear();
+
+    const timeStr = date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    if (isToday) {
+      return `Today, ${timeStr}`;
+    }
+
+    const dateStr = date.toLocaleDateString('en-GB', {
+      day: '2-digit',
+      month: 'long'
+    });
+    return `${dateStr}, ${timeStr}`;
+  };
 
   useEffect(() => {
     const fetchWithRetry = async (fn, retries = 3, delayMs = 800) => {
@@ -200,14 +284,6 @@ const MappingControlPage = ({ mode }) => {
       return;
     }
 
-    if (type === 'Courses') {
-      const selectedCategories = formData.selectedAssets.filter(a => a.type === 'Categories');
-      if (selectedCategories.length === 0) {
-        setError("Please select at least one Category before adding Courses.");
-        return;
-      }
-    }
-
     setPickerType(type);
     setShowPicker(true);
   };
@@ -215,6 +291,95 @@ const MappingControlPage = ({ mode }) => {
   const handleFilterChange = (key, value) => {
     setFormData(prev => ({ ...prev, [key]: value }));
   };
+
+  const normalizeNumberArray = (values) => {
+    if (!Array.isArray(values)) return [];
+    return [...new Set(values.map((value) => Number(value)).filter(Number.isFinite))].sort((a, b) => a - b);
+  };
+
+  const hasCompleteAudienceFilters = () => {
+    if (!formData.userType) return false;
+    if (!formData.gradeIds || formData.gradeIds.length === 0) return false;
+    if (formData.userType === 'School' && (!formData.schoolIds || formData.schoolIds.length === 0)) return false;
+    return true;
+  };
+
+  const refreshMappedAssetsForFilters = async () => {
+    if (!hasCompleteAudienceFilters()) {
+      setFormData(prev => ({ ...prev, selectedAssets: [] }));
+      return;
+    }
+
+    try {
+      const resp = await getMappings();
+      const mappings = Array.isArray(resp) ? resp : (resp.items || resp.data || []);
+
+      const selectedGrades = normalizeNumberArray(formData.gradeIds);
+      const selectedSchools = normalizeNumberArray(formData.schoolIds);
+      const selectedUserType = String(formData.userType || '').toLowerCase();
+
+      const mappedAssets = mappings
+        .filter((mapping) => {
+          const contentType = String(mapping?.content_type || '').toLowerCase();
+          if (!(contentType === 'course' || contentType === 'workshop')) return false;
+
+          const mappingGrades = normalizeNumberArray(
+            Array.isArray(mapping?.grade_ids)
+              ? mapping.grade_ids
+              : (mapping?.grade_id != null ? [mapping.grade_id] : [])
+          );
+
+          if (selectedGrades.length > 0 && !selectedGrades.every((gradeId) => mappingGrades.includes(gradeId))) {
+            return false;
+          }
+
+          const mappingSchoolId = Number(mapping?.school_id || mapping?.school?.id || mapping?.school || 0) || 0;
+          const mappingSubscription = String(mapping?.subscription_type || '').toLowerCase();
+
+          if (selectedUserType === 'school') {
+            if (selectedSchools.length === 0) return false;
+            if (!selectedSchools.includes(mappingSchoolId)) return false;
+            return mappingSubscription === 'premium' || mappingSubscription === 'school' || mappingSubscription === '';
+          }
+
+          if (selectedUserType === 'all') {
+            return mappingSchoolId === 0 && !mappingSubscription;
+          }
+
+          return mappingSchoolId === 0 && mappingSubscription === selectedUserType;
+        })
+        .map((mapping) => {
+          const rawType = String(mapping.content_type || '').toLowerCase();
+          const type = rawType === 'workshop' ? 'Workshops' : 'Courses';
+          return {
+            id: mapping.content_id,
+            title: mapping.content_title || `${type.slice(0, -1)} ${mapping.content_id}`,
+            type,
+            category: mapping.category || '—',
+            isExisting: true,
+            mappedAt: mapping.created_at || mapping._created_at || mapping.timestamp || Date.now(),
+          };
+        });
+
+      const dedupedAssets = [];
+      const seen = new Set();
+      mappedAssets.forEach((asset) => {
+        const key = `${asset.type}-${asset.id}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          dedupedAssets.push(asset);
+        }
+      });
+
+      setFormData(prev => ({ ...prev, selectedAssets: dedupedAssets }));
+    } catch (err) {
+      console.error('Failed to refresh mapped assets for current filters', err);
+    }
+  };
+
+  useEffect(() => {
+    refreshMappedAssetsForFilters();
+  }, [formData.userType, formData.gradeIds, formData.schoolIds]);
 
   const retryMeta = async () => {
     setMetaWarning(null);
@@ -263,11 +428,10 @@ const MappingControlPage = ({ mode }) => {
       'Courses': 'course',
       'Workshops': 'workshop',
       'Books': 'book',
-      'Bytes': 'byte',
-      'Categories': 'category'
+      'Bytes': 'byte'
     };
 
-    const allowedContentTypes = new Set(['course', 'workshop', 'book', 'byte', 'category']);
+    const allowedContentTypes = new Set(['course', 'workshop', 'book', 'byte']);
     const allowedSubscriptionTypes = new Set(['basic', 'premium', 'ultra']);
 
     const normalizeGradeIds = (gradeIds) => {
@@ -366,7 +530,7 @@ const MappingControlPage = ({ mode }) => {
 
     try {
       const allPayloads = [];
-      const mappableAssets = formData.selectedAssets.filter(asset => asset.type === 'Courses' || asset.type === 'Workshops');
+      const mappableAssets = formData.selectedAssets.filter(asset => (asset.type === 'Courses' || asset.type === 'Workshops') && !asset.isExisting);
 
       if (mappableAssets.length === 0) {
         setError('Please add at least one Course or Workshop to map.');
@@ -481,8 +645,8 @@ const MappingControlPage = ({ mode }) => {
         console.log('Payload:', JSON.stringify(editPayload));
         const editResult = await updateMapping(id, editPayload);
         console.log('Result:', { status: 'fulfilled', value: editResult, payload: editPayload });
-        setSuccess(true);
-        setTimeout(() => navigate('/admin/mappings/view'), 1500);
+        await refreshMappedAssetsForFilters();
+        setWarningToast('Mapping updated successfully.');
         return;
       }
 
@@ -510,8 +674,8 @@ const MappingControlPage = ({ mode }) => {
         setError(`Saved ${successCount} mapping(s), but ${failedCount} failed. Check browser console for failed payloads.`);
         return;
       }
-      setSuccess(true);
-      setTimeout(() => navigate('/admin/mappings/view'), 3000);
+      await refreshMappedAssetsForFilters();
+      setWarningToast('Mappings applied successfully.');
 
     } catch (err) {
       setError(`Failed to save mappings: ${err.message}`);
@@ -519,152 +683,6 @@ const MappingControlPage = ({ mode }) => {
       setSubmitting(false);
     }
   };
-
-  if (success) {
-    return (
-      <Layout title="Mapping Control Center">
-        <div className="success-overlay animate-fade-in">
-          <div className="success-popup">
-            {/* Animated checkmark */}
-            <div className="success-circle">
-              <svg viewBox="0 0 52 52" className="success-svg">
-                <circle cx="26" cy="26" r="25" fill="none" className="success-circle-bg" />
-                <path fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8" className="success-checkmark" />
-              </svg>
-            </div>
-
-            <h2 className="success-heading">Mapped Successfully!</h2>
-            <p className="success-subtext">
-              Your content has been mapped.<br />
-              It will be available to users within <strong>5–10 seconds</strong>.
-            </p>
-
-            <div className="success-progress">
-              <div className="success-progress-bar"></div>
-            </div>
-            <p className="success-redirect-hint">Redirecting in 3 seconds...</p>
-          </div>
-        </div>
-
-        <style dangerouslySetInnerHTML={{
-          __html: `
-          .success-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(15, 23, 42, 0.55);
-            backdrop-filter: blur(6px);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 9999;
-          }
-
-          .success-popup {
-            background: white;
-            border-radius: 24px;
-            padding: 52px 48px;
-            max-width: 440px;
-            width: 90%;
-            text-align: center;
-            box-shadow: 0 32px 64px -12px rgba(0,0,0,0.25);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 16px;
-            animation: popIn 0.35s cubic-bezier(0.34,1.56,0.64,1) forwards;
-          }
-
-          @keyframes popIn {
-            from { opacity: 0; transform: scale(0.8); }
-            to   { opacity: 1; transform: scale(1); }
-          }
-
-          .success-circle {
-            width: 88px;
-            height: 88px;
-            margin-bottom: 8px;
-          }
-
-          .success-svg {
-            width: 100%;
-            height: 100%;
-          }
-
-          .success-circle-bg {
-            stroke: #22c55e;
-            stroke-width: 2.5;
-            stroke-dasharray: 166;
-            stroke-dashoffset: 166;
-            animation: drawCircle 0.6s ease forwards 0.1s;
-          }
-
-          .success-checkmark {
-            stroke: #22c55e;
-            stroke-width: 3;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            stroke-dasharray: 48;
-            stroke-dashoffset: 48;
-            animation: drawCheck 0.4s ease forwards 0.65s;
-          }
-
-          @keyframes drawCircle {
-            to { stroke-dashoffset: 0; }
-          }
-
-          @keyframes drawCheck {
-            to { stroke-dashoffset: 0; }
-          }
-
-          .success-heading {
-            font-size: 26px;
-            font-weight: 800;
-            color: #111827;
-            margin: 0;
-            letter-spacing: -0.5px;
-          }
-
-          .success-subtext {
-            font-size: 15px;
-            color: #6b7280;
-            margin: 0;
-            line-height: 1.6;
-          }
-
-          .success-subtext strong {
-            color: #111827;
-          }
-
-          .success-progress {
-            width: 100%;
-            height: 4px;
-            background: #f3f4f6;
-            border-radius: 99px;
-            overflow: hidden;
-            margin-top: 8px;
-          }
-
-          .success-progress-bar {
-            height: 100%;
-            background: linear-gradient(90deg, #22c55e, #16a34a);
-            border-radius: 99px;
-            animation: progressFill 3s linear forwards;
-          }
-
-          @keyframes progressFill {
-            from { width: 0%; }
-            to   { width: 100%; }
-          }
-
-          .success-redirect-hint {
-            font-size: 12px;
-            color: #9ca3af;
-            margin: 0;
-          }
-        `}} />
-      </Layout>
-    );
-  }
 
   return (
     <Layout title="Mapping Control Center">
@@ -702,68 +720,89 @@ const MappingControlPage = ({ mode }) => {
         </header>
 
         <div className="mapping-grid">
-          <section className="config-card glass">
-            <div className="filter-group">
-              <label className="filter-label">Mapping Type</label>
-              <div className="custom-select">
-                <select value={formData.assignmentMode} onChange={(e) => setFormData({ ...formData, assignmentMode: e.target.value })}>
-                  <option value="" disabled hidden>Select</option>
-                  <option value="User">User</option>
-                  <option value="Asset">Asset</option>
-                </select>
-                <ChevronDown size={16} />
+          <section className="config-card glass" style={{ display: 'flex', flexDirection: 'row', gap: '16px', padding: '16px', flexWrap: 'wrap', position: 'relative', zIndex: 100 }}>
+            <div className="combo-select combo-dropdown dropdown-container" ref={mappingTypeDropdownRef} style={{ position: 'relative' }}>
+              <span className="combo-label">Mapping Type</span>
+              <span className="combo-divider"></span>
+              <div className="combo-trigger" onClick={() => setIsMappingTypeDropdownOpen(!isMappingTypeDropdownOpen)}>
+                <span style={{ fontSize: '13px', fontWeight: '500', color: formData.assignmentMode ? '#1e293b' : '#64748b' }}>
+                  {formData.assignmentMode || 'Select'}
+                </span>
+                <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
               </div>
-            </div>
-            <div className="filter-group">
-              <label className="filter-label">Select User Group</label>
-              <div className="custom-select">
-                <select
-                  value={formData.userType}
-                  onChange={(e) => setFormData({ ...formData, userType: e.target.value, schoolIds: [], gradeIds: [] })}
-                  disabled={!formData.assignmentMode}
-                >
-                  <option value="" disabled hidden>Select</option>
-                  <option value="all">All User Groups</option>
-                  <option value="Premium">Premium</option>
-                  <option value="Ultra">Ultra</option>
-                  <option value="School">School</option>
-                </select>
-                <ChevronDown size={16} />
-              </div>
-            </div>
-            {(formData.assignmentMode === 'User' && formData.userType === 'School') && (
-              <div className="filter-group animate-slide-in" ref={schoolDropdownRef}>
-                <label className="filter-label">Select Schools</label>
-                <div
-                  className={`custom-select ${isSchoolDropdownOpen ? 'open' : ''}`}
-                  onClick={() => formData.assignmentMode && setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}
-                  style={{
-                    cursor: formData.assignmentMode ? 'pointer' : 'not-allowed',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--radius-md)',
-                    background: '#f8fafc',
-                    width: '100%',
-                    opacity: formData.assignmentMode ? 1 : 0.6
-                  }}
-                >
-                  <div style={{ padding: '12px 16px', width: '100%', fontSize: '15px' }}>
-                    {formData.schoolIds?.length === 0
-                      ? 'Choose School...'
-                      : formData.schoolIds?.length === schools.length && schools.length > 0
-                        ? 'All Schools'
-                        : `${formData.schoolIds?.length} School(s) Selected`}
+
+              {isMappingTypeDropdownOpen && (
+                <div className="paged-dropdown-menu custom-combo-menu animate-slide-in" style={{ zIndex: 105, marginTop: '8px' }}>
+                  <div className="dropdown-options-list">
+                    {['User', 'Asset'].map(option => (
+                      <label key={option} className="menu-item-check">
+                        <input
+                          type="checkbox"
+                          checked={formData.assignmentMode === option}
+                          onChange={() => {
+                            setFormData((prev) => ({
+                              ...prev,
+                              assignmentMode: option,
+                              userType: '',
+                              schoolIds: [],
+                              gradeIds: [],
+                            }));
+                            setIsMappingTypeDropdownOpen(false);
+                          }}
+                        />
+                        <span>{option}</span>
+                      </label>
+                    ))}
                   </div>
-                  <ChevronDown size={16} style={{
-                    position: 'absolute', right: '16px',
-                    transform: isSchoolDropdownOpen ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 0.2s',
-                    pointerEvents: 'none'
-                  }} />
+                </div>
+              )}
+            </div>
+            {isMappingTypeSelected && (
+              <div className="combo-select combo-dropdown dropdown-container animate-slide-in" ref={userTypeDropdownRef} style={{ position: 'relative' }}>
+                <span className="combo-label">User Type</span>
+                <span className="combo-divider"></span>
+                <div className="combo-trigger" onClick={() => setIsUserTypeDropdownOpen(!isUserTypeDropdownOpen)}>
+                  <span style={{ fontSize: '13px', fontWeight: '500', color: formData.userType ? '#1e293b' : '#64748b' }}>
+                    {formData.userType ? (formData.userType === 'all' ? 'All' : formData.userType) : 'Select'}
+                  </span>
+                  <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                </div>
+
+                {isUserTypeDropdownOpen && (
+                  <div className="paged-dropdown-menu custom-combo-menu animate-slide-in" style={{ zIndex: 104, marginTop: '8px' }}>
+                    <div className="dropdown-options-list">
+                      {['all', 'Premium', 'Ultra', 'School'].map(option => (
+                        <label key={option} className="menu-item-check">
+                          <input
+                            type="checkbox"
+                            checked={formData.userType === option}
+                            onChange={() => {
+                              setFormData({ ...formData, userType: option, schoolIds: [], gradeIds: [] });
+                              setIsUserTypeDropdownOpen(false);
+                            }}
+                          />
+                          <span>{option === 'all' ? 'All' : option}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {(formData.assignmentMode === 'User' && formData.userType === 'School') && (
+              <div className="combo-select combo-dropdown dropdown-container animate-slide-in" ref={schoolDropdownRef} style={{ position: 'relative' }}>
+                <span className="combo-label">School</span>
+                <span className="combo-divider"></span>
+                <div className="combo-trigger" onClick={() => formData.assignmentMode && setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}>
+                  <span style={{ fontSize: '13px', fontWeight: '500', color: formData.schoolIds?.length > 0 ? '#1e293b' : '#64748b' }}>
+                    {getSelectedSchoolLabel()}
+                  </span>
+                  <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                 </div>
 
                 {isSchoolDropdownOpen && (
-                  <div className="custom-dropdown-menu animate-slide-in">
-                    <label className="dropdown-checkbox-item">
+                  <div className="paged-dropdown-menu custom-combo-menu animate-slide-in">
+                    <label className="menu-item-check all-option">
                       <input
                         type="checkbox"
                         checked={formData.schoolIds?.length === schools.length && schools.length > 0}
@@ -777,62 +816,45 @@ const MappingControlPage = ({ mode }) => {
                       />
                       <span>Select All</span>
                     </label>
-
-                    {schools.map(school => (
-                      <label key={school.id} className="dropdown-checkbox-item">
-                        <input
-                          type="checkbox"
-                          checked={formData.schoolIds?.includes(school.id)}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked;
-                            setFormData(prev => {
-                              const newSchools = isChecked
-                                ? [...(prev.schoolIds || []), school.id]
-                                : (prev.schoolIds || []).filter(id => id !== school.id);
-                              return { ...prev, schoolIds: newSchools };
-                            });
-                          }}
-                        />
-                        <span>{school.name}</span>
-                      </label>
-                    ))}
+                    <div className="dropdown-divider"></div>
+                    <div className="dropdown-options-list">
+                      {schools.map(school => (
+                        <label key={school.id} className="menu-item-check">
+                          <input
+                            type="checkbox"
+                            checked={formData.schoolIds?.includes(school.id)}
+                            onChange={(e) => {
+                              const isChecked = e.target.checked;
+                              setFormData(prev => {
+                                const newSchools = isChecked
+                                  ? [...(prev.schoolIds || []), school.id]
+                                  : (prev.schoolIds || []).filter(id => id !== school.id);
+                                return { ...prev, schoolIds: newSchools };
+                              });
+                            }}
+                          />
+                          <span>{school.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
             )}
             {(formData.userType !== '' && (formData.userType !== 'School' || (formData.schoolIds && formData.schoolIds.length > 0))) && (
-              <div className="filter-group animate-slide-in" ref={gradeDropdownRef}>
-                <label className="filter-label">Select Grades</label>
-                <div
-                  className={`custom-select ${isGradeDropdownOpen ? 'open' : ''}`}
-                  onClick={() => formData.assignmentMode && setIsGradeDropdownOpen(!isGradeDropdownOpen)}
-                  style={{
-                    cursor: formData.assignmentMode ? 'pointer' : 'not-allowed',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--radius-md)',
-                    background: '#f8fafc',
-                    width: '100%',
-                    opacity: formData.assignmentMode ? 1 : 0.6
-                  }}
-                >
-                  <div style={{ padding: '12px 16px', width: '100%', fontSize: '15px' }}>
-                    {formData.gradeIds.length === 0
-                      ? 'Choose Grade...'
-                      : formData.gradeIds.length === grades.length && grades.length > 0
-                        ? 'All Grades'
-                        : `${formData.gradeIds.length} Grade(s) Selected`}
-                  </div>
-                  <ChevronDown size={16} style={{
-                    position: 'absolute', right: '16px',
-                    transform: isGradeDropdownOpen ? 'rotate(180deg)' : 'none',
-                    transition: 'transform 0.2s',
-                    pointerEvents: 'none'
-                  }} />
+              <div className="combo-select combo-dropdown dropdown-container animate-slide-in" ref={gradeDropdownRef} style={{ position: 'relative' }}>
+                <span className="combo-label">Grade</span>
+                <span className="combo-divider"></span>
+                <div className="combo-trigger" onClick={() => formData.assignmentMode && setIsGradeDropdownOpen(!isGradeDropdownOpen)}>
+                  <span style={{ fontSize: '13px', fontWeight: '500', color: formData.gradeIds.length > 0 ? '#1e293b' : '#64748b' }}>
+                    {getSelectedGradeLabel()}
+                  </span>
+                  <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                 </div>
 
                 {isGradeDropdownOpen && (
-                  <div className="custom-dropdown-menu animate-slide-in">
-                    <label className="dropdown-checkbox-item">
+                  <div className="paged-dropdown-menu custom-combo-menu animate-slide-in">
+                    <label className="menu-item-check all-option">
                       <input
                         type="checkbox"
                         checked={formData.gradeIds.length === grades.length && grades.length > 0}
@@ -846,25 +868,27 @@ const MappingControlPage = ({ mode }) => {
                       />
                       <span>Select All</span>
                     </label>
-
-                    {grades.map(grade => (
-                      <label key={grade.id} className="dropdown-checkbox-item">
-                        <input
-                          type="checkbox"
-                          checked={formData.gradeIds.includes(grade.id)}
-                          onChange={(e) => {
-                            const isChecked = e.target.checked;
-                            setFormData(prev => {
-                              const newGrades = isChecked
-                                ? [...prev.gradeIds, grade.id]
-                                : prev.gradeIds.filter(id => id !== grade.id);
-                              return { ...prev, gradeIds: newGrades };
-                            });
-                          }}
-                        />
-                        <span>{grade.name?.toLowerCase().includes('grade') ? grade.name : `Grade ${grade.name || grade.id}`}</span>
-                      </label>
-                    ))}
+                    <div className="dropdown-divider"></div>
+                    <div className="dropdown-options-list">
+                      {grades.map(grade => (
+                        <label key={grade.id} className="menu-item-check">
+                          <input
+                            type="checkbox"
+                            checked={formData.gradeIds.includes(grade.id)}
+                            onChange={(e) => {
+                              const isChecked = e.target.checked;
+                              setFormData(prev => {
+                                const newGrades = isChecked
+                                  ? [...prev.gradeIds, grade.id]
+                                  : prev.gradeIds.filter(id => id !== grade.id);
+                                return { ...prev, gradeIds: newGrades };
+                              });
+                            }}
+                          />
+                          <span>{grade.name?.toLowerCase().includes('grade') ? grade.name : `Grade ${grade.name || grade.id}`}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
@@ -872,25 +896,30 @@ const MappingControlPage = ({ mode }) => {
           </section>
 
           <div className="asset-sections">
-            {['Categories', 'Courses', 'Workshops'].map((type) => (
+            {['Courses', 'Workshops'].map((type) => (
               <div key={type} className={`asset-row ${expandedSections[type.toLowerCase()] ? 'open' : ''}`}>
                 <div className="row-header" onClick={() => toggleSection(type.toLowerCase())}>
                   <div className="header-title">
                     <Layers size={18} className="icon" />
                     <span>{type}</span>
                     <span className="count-badge">
-                      {formData.selectedAssets.filter(a => a.type === type).length} Selected
+                      {(() => {
+                        const assets = formData.selectedAssets.filter(a => a.type === type);
+                        const mappedCount = assets.filter(a => a.isExisting).length;
+                        const selectedCount = assets.filter(a => !a.isExisting).length;
+
+                        const parts = [];
+                        if (mappedCount > 0) parts.push(`${mappedCount} Mapped`);
+                        if (selectedCount > 0) parts.push(`${selectedCount} Selected`);
+
+                        return parts.length > 0 ? parts.join(' · ') : '0 Selected';
+                      })()}
                     </span>
                   </div>
                   <div className="header-actions">
                     <button
-                      className={`add-btn ${type === 'Courses' && formData.selectedAssets.filter(a => a.type === 'Categories').length === 0 ? 'disabled' : ''}`}
+                      className="add-btn"
                       onClick={(e) => { e.stopPropagation(); openPicker(type); }}
-                      style={{
-                        opacity: type === 'Courses' && formData.selectedAssets.filter(a => a.type === 'Categories').length === 0 ? 0.5 : 1,
-                        cursor: type === 'Courses' && formData.selectedAssets.filter(a => a.type === 'Categories').length === 0 ? 'not-allowed' : 'pointer'
-                      }}
-                      disabled={type === 'Courses' && formData.selectedAssets.filter(a => a.type === 'Categories').length === 0}
                     >
                       <Plus size={14} />
                       <span>Add</span>
@@ -899,40 +928,144 @@ const MappingControlPage = ({ mode }) => {
                   </div>
                 </div>
                 <div className="row-content">
-                  {formData.selectedAssets.filter(a => a.type === type).length > 0 ? (
-                    <table className="assets-table">
-                      <thead>
-                        <tr>
-                          <th>#</th>
-                          <th>Name</th>
-                          <th>Category</th>
-                          <th>Remove</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {formData.selectedAssets.filter(a => a.type === type).map((asset, idx) => (
-                          <tr key={`${asset.type}-${asset.id}`}>
-                            <td className="row-num">{idx + 1}</td>
-                            <td className="asset-name-cell">{asset.title || asset.name}</td>
-                            <td><span className="type-badge">{asset.category || '—'}</span></td>
-                            <td>
-                              <button
-                                className="remove-row-btn"
-                                onClick={() => handleAssetToggle(asset)}
-                                title="Remove"
-                              >×</button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  ) : (
-                    <div className="empty-state">No {type.toLowerCase()} selected yet. Click <strong>+ Add</strong> to select.</div>
-                  )}
+                  {(() => {
+                    const assets = formData.selectedAssets.filter(a => a.type === type);
+                    const mappedAssets = assets.filter(a => a.isExisting);
+                    const newlySelectedAssets = assets.filter(a => !a.isExisting);
+
+                    if (assets.length === 0) {
+                      return <div className="empty-state">No {type.toLowerCase()} selected yet. Click <strong>+ Add</strong> to select.</div>;
+                    }
+
+                    return (
+                      <div className="split-asset-tables">
+                        {mappedAssets.length > 0 && (
+                          <div className="asset-sub-section">
+                            <h5 className="sub-section-title">Already Mapped Assets</h5>
+                            <table className="assets-table">
+                              <thead>
+                                <tr>
+                                  <th>#</th>
+                                  <th>Name</th>
+                                  <th>Category</th>
+                                  <th>Mapped Date</th>
+                                  <th>Move to Bin</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {mappedAssets.map((asset, idx) => (
+                                  <tr key={`mapped-${asset.id}`}>
+                                    <td className="row-num">{idx + 1}</td>
+                                    <td className="asset-name-cell">{asset.title || asset.name}</td>
+                                    <td><span className="type-badge">{asset.category || '—'}</span></td>
+                                    <td style={{ fontSize: '12px', color: '#64748b' }}>
+                                      {formatMappedDate(asset.mappedAt)}
+                                    </td>
+                                    <td>
+                                      <button
+                                        className="remove-row-btn bin-btn"
+                                        onClick={() => {
+                                          setAssetToDelete(asset);
+                                          setShowDeleteModal(true);
+                                        }}
+                                        title="Move to Bin"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+
+                        {newlySelectedAssets.length > 0 && (
+                          <div className="asset-sub-section" style={{ marginTop: mappedAssets.length > 0 ? '24px' : '0' }}>
+                            <h5 className="sub-section-title">Newly Selected Assets</h5>
+                            <table className="assets-table newly-selected">
+                              <thead>
+                                <tr>
+                                  <th>#</th>
+                                  <th>Name</th>
+                                  <th>Category</th>
+                                  <th>Status</th>
+                                  <th>Remove</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {newlySelectedAssets.map((asset, idx) => (
+                                  <tr key={`selected-${asset.id}`}>
+                                    <td className="row-num">{idx + 1}</td>
+                                    <td className="asset-name-cell">{asset.title || asset.name}</td>
+                                    <td><span className="type-badge">{asset.category || '—'}</span></td>
+                                    <td style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600' }}>Pending</td>
+                                    <td>
+                                      <button
+                                        className="remove-row-btn bin-btn"
+                                        onClick={() => handleAssetToggle(asset)}
+                                        title="Remove"
+                                      >
+                                        <Trash2 size={16} />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
             ))}
           </div>
+
+          <Modal
+            isOpen={showDeleteModal}
+            onClose={() => setShowDeleteModal(false)}
+            title={`Move ${assetToDelete?.isExisting ? (pickerType === 'Workshops' ? 'Workshop' : 'Course') : 'Selection'} to Bin`}
+          >
+            <div className="wm-delete-modal-v2">
+              <div className="wm-delete-sidebar">
+                <div className="wm-warning-icon">!</div>
+              </div>
+              <div className="wm-delete-content">
+                <p className="wm-delete-msg">Are you sure you want to move <strong>"{assetToDelete?.title || assetToDelete?.name}"</strong> to Bin.</p>
+                <p className="wm-delete-subtext">This will temporarily "UN-map" {pickerType === 'Workshops' ? 'Workshop' : 'Course'}, you can undo this action from "Bin"</p>
+
+                <div className="wm-passkey-group">
+                  <div className="wm-passkey-box">
+                    <span className="wm-passkey-label">Enter admin passkey *</span>
+                    <input
+                      type="password"
+                      className="wm-passkey-field"
+                      value={passkey}
+                      onChange={(e) => setPasskey(e.target.value)}
+                      placeholder="******"
+                    />
+                  </div>
+                </div>
+
+                <div className="wm-delete-footer">
+                  <button className="wm-discard-btn-v2" onClick={() => setShowDeleteModal(false)}>Discard</button>
+                  <button
+                    className="wm-confirm-btn-v2"
+                    onClick={() => {
+                      if (assetToDelete) handleAssetToggle(assetToDelete);
+                      setShowDeleteModal(false);
+                      setPasskey('');
+                    }}
+                  >
+                    <Trash2 size={16} />
+                    <span>Yes, move to Bin</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Modal>
 
           <section className="audience-summary-card glass">
             <div className="summary-info">
@@ -1603,6 +1736,255 @@ const MappingControlPage = ({ mode }) => {
           display: flex;
           justify-content: flex-end;
           margin-top: 20px;
+        }
+        .bin-btn {
+          color: #64748b !important;
+          transition: all 0.2s;
+          display: flex !important;
+          align-items: center;
+          justify-content: center;
+          padding: 6px !important;
+          border-radius: 6px !important;
+          border: none !important;
+          background: transparent !important;
+        }
+
+        .bin-btn:hover {
+          background: #fee2e2 !important;
+          color: #ef4444 !important;
+        }
+
+        .wm-delete-modal {
+          display: flex;
+          flex-direction: column;
+          gap: 16px;
+        }
+
+        .wm-delete-msg {
+          font-size: 16px;
+          color: #1e293b;
+          margin: 0;
+        }
+
+        .wm-delete-subtext {
+          font-size: 14px;
+          color: #64748b;
+          margin: 0;
+        }
+
+        .wm-passkey-section {
+          display: flex;
+          flex-direction: column;
+          gap: 8px;
+          margin-top: 8px;
+        }
+
+        .wm-passkey-section label {
+          font-size: 14px;
+          font-weight: 500;
+          color: #1e293b;
+        }
+
+        .passkey-input {
+          padding: 10px 12px;
+          border-radius: 6px;
+          border: 1px solid #10b981;
+          background: #f8fafc;
+          outline: none;
+          width: 100%;
+        }
+
+        .delete-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-top: 12px;
+        }
+
+        .discard-btn {
+          padding: 10px 24px;
+          border-radius: 6px;
+          border: 1px solid #e2e8f0;
+          background: white;
+          color: #2563eb;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .confirm-delete-btn {
+          padding: 10px 20px;
+          border-radius: 6px;
+          background: #2563eb;
+          color: white;
+          font-weight: 600;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border: none;
+        }
+
+        .confirm-delete-btn:hover {
+          background: #1d4ed8;
+        }
+
+        .sub-section-title {
+          font-size: 13px;
+          font-weight: 700;
+          color: #64748b;
+          text-transform: uppercase;
+          letter-spacing: 0.05em;
+          margin-bottom: 12px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .sub-section-title::after {
+          content: "";
+          flex: 1;
+          height: 1px;
+          background: #e2e8f0;
+        }
+
+        .assets-table.newly-selected tr {
+          background-color: #f0f7ff;
+        }
+
+        /* Redesigned Modal Styles */
+        .wm-delete-modal-v2 {
+          display: flex;
+          min-height: 280px;
+          margin: -24px; /* remove modal padding */
+        }
+
+        .wm-delete-sidebar {
+          width: 120px;
+          background: #fee2e2;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          flex-shrink: 0;
+        }
+
+        .wm-warning-icon {
+          width: 50px;
+          height: 50px;
+          border: 2.5px solid #ef4444;
+          border-radius: 50%;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: #ef4444;
+          font-size: 28px;
+          font-weight: 700;
+          position: relative;
+        }
+
+        .wm-warning-icon::before {
+           content: "";
+           position: absolute;
+           top: -8px;
+           left: 50%;
+           transform: translateX(-50%);
+           border-left: 10px solid transparent;
+           border-right: 10px solid transparent;
+           border-bottom: 20px solid transparent;
+        }
+
+        .wm-delete-content {
+          flex: 1;
+          padding: 32px;
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .wm-modal-headline {
+          font-size: 18px;
+          font-weight: 700;
+          color: #1e293b;
+          margin: 0;
+        }
+
+        .wm-delete-msg {
+          font-size: 15px;
+          color: #1e293b;
+          line-height: 1.5;
+          margin: 0;
+        }
+
+        .wm-delete-subtext {
+          font-size: 14px;
+          color: #475569;
+          line-height: 1.5;
+          margin: 0;
+        }
+
+        .wm-passkey-group {
+          margin-top: 12px;
+        }
+
+        .wm-passkey-box {
+          display: flex;
+          align-items: center;
+          border: 1px solid #cbd5e1;
+          border-radius: 6px;
+          overflow: hidden;
+          background: white;
+        }
+
+        .wm-passkey-label {
+          padding: 10px 14px;
+          background: #f8fafc;
+          border-right: 1px solid #cbd5e1;
+          font-size: 13px;
+          color: #64748b;
+          white-space: nowrap;
+        }
+
+        .wm-passkey-field {
+          flex: 1;
+          border: none;
+          padding: 10px 14px;
+          font-size: 14px;
+          background: transparent;
+          outline: none;
+        }
+
+        .wm-delete-footer {
+          display: flex;
+          justify-content: flex-end;
+          gap: 12px;
+          margin-top: 16px;
+        }
+
+        .wm-discard-btn-v2 {
+          padding: 10px 24px;
+          border-radius: 6px;
+          border: 1px solid #cbd5e1;
+          background: white;
+          color: #3b82f6;
+          font-weight: 600;
+          font-size: 14px;
+        }
+
+        .wm-confirm-btn-v2 {
+          background: #dc2626;
+          color: white;
+          padding: 10px 24px;
+          border-radius: 6px;
+          font-weight: 600;
+          font-size: 14px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border: none;
+          cursor: pointer;
+        }
+
+        .wm-confirm-btn-v2:hover {
+          background: #b91c1c;
         }
       ` }} />
     </Layout>
