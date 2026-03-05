@@ -673,7 +673,7 @@ const DashboardPage = () => {
 
                                         <div className="dropdown-options-list">
                                             {categories.map(c => (
-                                                <label key={c} className="menu-item-check">
+                                                <label key={c} className={`menu-item-check ${c === 'All' ? 'all-option' : ''}`}>
                                                     <input
                                                         type="radio"
                                                         name="categoryFilter"
