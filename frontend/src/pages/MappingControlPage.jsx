@@ -1353,7 +1353,8 @@ const MappingControlPage = ({ mode }) => {
         }
 
         .asset-row.open .row-content {
-          max-height: 500px;
+          max-height: 1000px;
+          overflow-y: auto;
           padding: 20px 24px;
         }
 

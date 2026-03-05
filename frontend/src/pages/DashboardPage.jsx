@@ -466,39 +466,45 @@ const DashboardPage = () => {
     return (
         <Layout title="Mapped Assets Dashboard">
             <div className="dashboard-content">
-                <form className="search-form-top animate-fade-in" onSubmit={handleSearch} style={{ position: 'relative', width: '100%', marginBottom: '20px' }}>
-                    <Search size={16} style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: (hasSubmitted && data.length > 0) ? '#94a3b8' : '#cbd5e1', zIndex: 1 }} />
-                    <input
-                        type="text"
-                        placeholder={searchParams.get('assetType') ? `Search ${searchParams.get('assetType')}s` : "Search assets, audience..."}
-                        value={filters.search}
-                        onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
-                        onKeyUp={() => {
-                            if (hasSubmitted && data.length > 0) {
-                                loadData();
-                            }
-                        }}
-                        disabled={!hasSubmitted || data.length === 0}
-                        style={{
-                            width: '100%',
-                            padding: '12px 12px 12px 40px',
-                            borderRadius: '10px',
-                            border: '1px solid #e2e8f0',
-                            outline: 'none',
-                            background: (hasSubmitted && data.length > 0) ? '#ffffff' : '#f8fafc',
-                            color: (hasSubmitted && data.length > 0) ? '#1e293b' : '#94a3b8',
-                            cursor: (hasSubmitted && data.length > 0) ? 'text' : 'not-allowed',
-                            fontSize: '14px',
-                            boxShadow: 'var(--shadow-sm)'
-                        }}
-                    />
-                </form>
 
-                <header className="dashboard-header animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                <header className="dashboard-header animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
                     <div className="header-text">
-                        <h1>{searchParams.get('assetType') ? `${searchParams.get('assetType').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Mapping` : 'Mapped Assets'}</h1>
-                        <p>Manage and monitor all {searchParams.get('assetType') ? searchParams.get('assetType').replace(/_/g, ' ') : 'course'}-to-audience assignments.</p>
+                        <h1 style={{ margin: 0, fontSize: '32px', fontWeight: '800', color: '#1e293b', letterSpacing: '-0.5px' }}>
+                            {searchParams.get('assetType') ? `${searchParams.get('assetType').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Mapping` : 'Mapped Assets'}
+                        </h1>
+                        <p style={{ margin: '4px 0 0 0', fontSize: '15px', color: '#64748b', fontWeight: '500' }}>
+                            Manage and monitor all {searchParams.get('assetType') ? searchParams.get('assetType').replace(/_/g, ' ') : 'course'}-to-audience assignments.
+                        </p>
                     </div>
+
+                    <form className="search-form-top animate-fade-in" onSubmit={handleSearch} style={{ position: 'relative', width: '100%', maxWidth: '280px', marginTop: '8px' }}>
+                        <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', zIndex: 1 }} />
+                        <input
+                            type="text"
+                            placeholder={searchParams.get('assetType') ? `Search ${searchParams.get('assetType').charAt(0).toUpperCase() + searchParams.get('assetType').slice(1)}s` : "Search Courses"}
+                            value={filters.search}
+                            onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
+                            onKeyUp={() => {
+                                if (hasSubmitted && data.length > 0) {
+                                    loadData();
+                                }
+                            }}
+                            disabled={!hasSubmitted || data.length === 0}
+                            style={{
+                                width: '100%',
+                                padding: '12px 14px 12px 42px',
+                                borderRadius: '10px',
+                                border: '1px solid #cbd5e1',
+                                outline: 'none',
+                                background: '#ffffff',
+                                color: '#1e293b',
+                                cursor: (hasSubmitted && data.length > 0) ? 'text' : 'not-allowed',
+                                fontSize: '14px',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                transition: 'all 0.2s'
+                            }}
+                        />
+                    </form>
                 </header>
 
                 <section className="filter-bar-custom glass" style={{ position: 'relative', zIndex: 100, animationDelay: '0.1s', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
