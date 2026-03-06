@@ -26,8 +26,8 @@ const Modal = ({ isOpen, onClose, title, children }) => {
           left: 0;
           right: 0;
           bottom: 0;
-          background: rgba(15, 23, 42, 0.7);
-          backdrop-filter: blur(4px);
+          background: rgba(0, 0, 0, 0.5);
+          backdrop-filter: blur(2px);
           display: flex;
           align-items: center;
           justify-content: center;

@@ -21,6 +21,9 @@ const endpoints = {
         countUsers: `${XANO_MEMBERS_BASE_URL}/get_all_users`,
         updateUser: (id) => `${XANO_MEMBERS_BASE_URL}/user/${id}`,
         deleteUser: (id) => `${XANO_MEMBERS_BASE_URL}/user/${id}`,
+        updateStudent: `${XANO_MEMBERS_BASE_URL}/update_student`,
+        deleteStudent: `${XANO_MEMBERS_BASE_URL}/delete_student`,
+        createStudent: `${XANO_MEMBERS_BASE_URL}/create_student`,
     },
     courses: {
         getAllCourses: `${XANO_COURSES_BASE_URL}/get_all_courses`,
