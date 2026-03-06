@@ -387,10 +387,34 @@ const NewCoursePage = () => {
         }
     };
 
+    const isStep1MandatoryFilled = Boolean(
+        (courseName || '').trim() &&
+        (selectedCategory || '').trim() &&
+        (thumbnail || '').trim() &&
+        (headerImage || '').trim() &&
+        (youtubeUrl || '').trim()
+    );
+
     const handleNext = async () => {
         if (step === 1) {
-            if (!courseName) {
+            if (!(courseName || '').trim()) {
                 toast.error("Course name is required.");
+                return;
+            }
+            if (!(selectedCategory || '').trim()) {
+                toast.error("Category is required.");
+                return;
+            }
+            if (!(headerImage || '').trim()) {
+                toast.error("Header image is required.");
+                return;
+            }
+            if (!(thumbnail || '').trim()) {
+                toast.error("Thumbnail is required.");
+                return;
+            }
+            if (!(youtubeUrl || '').trim()) {
+                toast.error("Video (YouTube URL) is required.");
                 return;
             }
             try {
@@ -662,16 +686,16 @@ const NewCoursePage = () => {
                     <div style={{ display: 'flex', gap: '12px' }}>
                         <button
                             onClick={step === 3 ? handlePublish : handleNext}
-                            disabled={loading}
+                            disabled={loading || (step === 1 && !isStep1MandatoryFilled)}
                             style={{
                                 padding: '10px 48px',
-                                background: '#2563eb',
+                                background: (step === 1 && !isStep1MandatoryFilled) ? '#94a3b8' : '#2563eb',
                                 color: 'white',
                                 border: 'none',
                                 borderRadius: '6px',
                                 fontWeight: '700',
                                 fontSize: '14px',
-                                cursor: 'pointer',
+                                cursor: loading || (step === 1 && !isStep1MandatoryFilled) ? 'not-allowed' : 'pointer',
                                 opacity: loading ? 0.7 : 1,
                                 minWidth: '120px'
                             }}
@@ -681,18 +705,36 @@ const NewCoursePage = () => {
                     </div>
                 </div>
 
-                {/* Breadcrumb Steps */}
+                {/* Breadcrumb Steps - clickable */}
                 <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '24px', padding: '40px 0' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <span style={{ fontSize: '18px', fontWeight: step === 1 ? '700' : '500', color: step === 1 ? '#1e293b' : '#64748b' }}>Course Details</span>
+                        <button
+                            type="button"
+                            onClick={() => setStep(1)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: '18px', fontWeight: step === 1 ? '700' : '500', color: step === 1 ? '#1e293b' : '#64748b' }}
+                        >
+                            Course Details
+                        </button>
                         <div style={{ width: '80px', height: '1px', background: '#cbd5e1' }}></div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <span style={{ fontSize: '18px', fontWeight: step === 2 ? '700' : '500', color: step === 2 ? '#1e293b' : '#64748b' }}>Chapters</span>
+                        <button
+                            type="button"
+                            onClick={() => setStep(2)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: '18px', fontWeight: step === 2 ? '700' : '500', color: step === 2 ? '#1e293b' : '#64748b' }}
+                        >
+                            Chapters
+                        </button>
                         <div style={{ width: '80px', height: '1px', background: '#cbd5e1' }}></div>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center' }}>
-                        <span style={{ fontSize: '18px', fontWeight: step === 3 ? '700' : '500', color: step === 3 ? '#2563eb' : '#64748b' }}>Map & Publish</span>
+                        <button
+                            type="button"
+                            onClick={() => setStep(3)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontFamily: 'inherit', fontSize: '18px', fontWeight: step === 3 ? '700' : '500', color: step === 3 ? '#2563eb' : '#64748b' }}
+                        >
+                            Map & Publish
+                        </button>
                     </div>
                 </div>
 
