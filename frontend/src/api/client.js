@@ -9,9 +9,15 @@ class APIClient {
 
     async request(method, url, data = null, params = {}) {
         try {
+            const authToken = localStorage.getItem('authToken');
+            const headers = {
+                ...this.config.http.headers,
+                ...(authToken && { 'Authorization': `Bearer ${authToken}` })
+            };
+
             const fetchOptions = {
                 method,
-                headers: this.config.http.headers,
+                headers,
             };
 
             if (data && (method === 'POST' || method === 'PATCH')) {
