@@ -246,65 +246,66 @@ const CreateUserPage = () => {
         <Layout title="Create User">
             <div className="cu-page-wrapper">
                 <div className="cu-container">
-                    {/* ── Top bar: breadcrumb + Save (step 2 only) ── */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '16px', fontWeight: '500' }}>
-                            <ChevronLeft
-                                size={18}
-                                color="#6b7280"
-                                style={{ cursor: 'pointer' }}
-                                onClick={() => navigate('/admin/config/users')}
-                            />
-                            <span
-                                onClick={() => navigate('/admin/config/users')}
-                                style={{ color: '#2563eb', cursor: 'pointer', fontWeight: '500' }}
-                            >
-                                Users
-                            </span>
-                            <span style={{ color: '#6b7280' }}>/</span>
-                            <span style={{ color: '#6b7280' }}>New user</span>
-                        </div>
-                        {step === 2 && (
-                            <button
-                                onClick={handleSave}
-                                style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 24px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}
-                            >
-                                Save
-                            </button>
-                        )}
-                    </div>
-
-                    {/* ── Stepper row ── */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px', marginBottom: '24px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <span style={{ color: step === 1 ? '#2563eb' : '#22c55e', fontWeight: '700', fontSize: '16px' }}>Student Details</span>
-                            <span style={{ color: '#9ca3af', fontSize: '20px' }}>→</span>
-                            <span style={{ color: step === 2 ? '#2563eb' : '#9ca3af', fontWeight: step === 2 ? '600' : '400', fontSize: '16px' }}>Map &amp; Publish</span>
-                        </div>
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                            {step === 1 ? (
-                                <>
+                    {step === 1 ? (
+                        <>
+                            {/* ── Step 1: breadcrumb ── */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '20px', fontSize: '16px', fontWeight: '500' }}>
+                                <ChevronLeft size={18} color="#6b7280" style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/config/users')} />
+                                <span onClick={() => navigate('/admin/config/users')} style={{ color: '#2563eb', cursor: 'pointer', fontWeight: '500' }}>Users</span>
+                                <span style={{ color: '#6b7280' }}>/</span>
+                                <span style={{ color: '#6b7280' }}>New user</span>
+                            </div>
+                            {/* ── Step 1: stepper + Reset/Next ── */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px', marginBottom: '24px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                                    <span style={{ color: '#2563eb', fontWeight: '700', fontSize: '16px' }}>Student Details</span>
+                                    <span style={{ color: '#9ca3af', fontSize: '20px' }}>→</span>
+                                    <span style={{ color: '#9ca3af', fontWeight: '400', fontSize: '16px' }}>Map &amp; Publish</span>
+                                </div>
+                                <div style={{ display: 'flex', gap: '8px' }}>
                                     <button className="cu-btn-outline" onClick={handleReset}>Reset</button>
                                     <button className="cu-btn-primary" onClick={handleNext} disabled={saving}>
                                         {saving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : 'Next'}
                                     </button>
-                                </>
-                            ) : (
-                                <>
-                                    <button onClick={handleCancel} style={{ background: 'white', border: '1px solid #d1d5db', padding: '8px 20px', borderRadius: '6px', cursor: 'pointer' }}>
-                                        Cancel
-                                    </button>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            {/* ── Step 2 Row 1: breadcrumb left, Save button right ── */}
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '15px' }}>
+                                    <ChevronLeft size={18} color="#6b7280" style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/config/users')} />
+                                    <span onClick={() => navigate('/admin/config/users')} style={{ color: '#2563eb', cursor: 'pointer', fontWeight: '500' }}>Users</span>
+                                    <span style={{ color: '#6b7280' }}>/</span>
+                                    <span style={{ color: '#6b7280' }}>New user</span>
+                                </div>
+                                <button onClick={handleSave} style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 24px', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>
+                                    Save
+                                </button>
+                            </div>
+                            {/* ── Step 2 Row 2: stepper CENTERED, Cancel + Apply Mappings RIGHT ── */}
+                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px', position: 'relative' }}>
+                                <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                    <span style={{ color: '#6b7280', fontSize: '15px' }}>Student Details</span>
+                                    <span style={{ color: '#9ca3af', fontSize: '18px' }}>→</span>
+                                    <span style={{ color: '#2563eb', fontWeight: '700', fontSize: '15px' }}>Map &amp; Publish</span>
+                                </div>
+                                <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
+                                    <button onClick={handleCancel} style={{ background: 'white', border: '1px solid #d1d5db', padding: '8px 20px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
                                     <button
                                         onClick={handleApplyMappings}
                                         disabled={applyingMappings || (selectedCourses.length === 0 && selectedWorkshops.length === 0)}
-                                        style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '6px', cursor: (applyingMappings || (selectedCourses.length === 0 && selectedWorkshops.length === 0)) ? 'not-allowed' : 'pointer', opacity: (applyingMappings || (selectedCourses.length === 0 && selectedWorkshops.length === 0)) ? 0.6 : 1 }}
+                                        style={{ background: '#2563eb', color: 'white', border: 'none', padding: '8px 20px', borderRadius: '6px', fontWeight: '600', cursor: (applyingMappings || (selectedCourses.length === 0 && selectedWorkshops.length === 0)) ? 'not-allowed' : 'pointer', opacity: (applyingMappings || (selectedCourses.length === 0 && selectedWorkshops.length === 0)) ? 0.6 : 1, fontSize: '14px' }}
                                     >
                                         {applyingMappings ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : 'Apply Mappings'}
                                     </button>
-                                </>
-                            )}
-                        </div>
-                    </div>
+                                </div>
+                            </div>
+                            {/* ── Divider ── */}
+                            <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: '24px' }} />
+                        </>
+                    )}
 
                     <div className="cu-form-body">
                         {/* ============== STEP 1 ============== */}
