@@ -49,6 +49,7 @@ export const getCategories = () => client.get(courses.getAllCategories);
 
 // Mapping CRUD (Courses Base)
 export const getMappings = (params) => client.get(courses.getMappings, params);
+export const getEntitlements = (params) => client.get(courses.getMappings, params);
 export const getMappingById = (id) => client.get(courses.getMapping(id));
 export const createMapping = (data) => client.post(courses.upsertEntitlement, data);
 export const updateMapping = (id, data) => client.post(courses.upsertEntitlement, data);

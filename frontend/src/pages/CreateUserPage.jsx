@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Loader2, Plus, Trash2, Upload, Search, Check } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
-import { getGrades, getSchools, getCourses, getWorkshops, createStudent } from '../services/api';
+import { getGrades, getSchools, getCourses, getWorkshops, createStudent, getUsers } from '../services/api';
+import AssetPicker from '../components/mapping/AssetPicker';
 
 const STEPS = ['Student Details', 'Map & Publish'];
 
@@ -54,6 +55,8 @@ const CreateUserPage = () => {
     const [workshopSearch, setWorkshopSearch] = useState('');
     const [applyingMappings, setApplyingMappings] = useState(false);
     const [mappingApplied, setMappingApplied] = useState(false);
+    const [pickerType, setPickerType] = useState(null);
+    const [showAssetPicker, setShowAssetPicker] = useState(false);
 
     // Fetch meta on mount
     useEffect(() => {
@@ -103,6 +106,21 @@ const CreateUserPage = () => {
 
         setSaving(true);
         try {
+            // Check for duplicate email/mobile
+            const existingUsers = await getUsers();
+            const allUsers = Array.isArray(existingUsers?.data) ? existingUsers.data : (Array.isArray(existingUsers) ? existingUsers : []);
+            const duplicate = allUsers.find(u =>
+                u.email?.toLowerCase() === email.toLowerCase() ||
+                (mobile && u.mobile && u.mobile === mobile)
+            );
+            if (duplicate) {
+                const msg = duplicate.email?.toLowerCase() === email.toLowerCase()
+                    ? 'A user with this email already exists.'
+                    : 'A user with this mobile number already exists.';
+                setErrors(prev => ({ ...prev, email: msg }));
+                setSaving(false);
+                return;
+            }
             const fullName = [surname, firstName, lastName].filter(Boolean).join(' ').trim();
             const body = {
                 name: fullName,
@@ -143,6 +161,11 @@ const CreateUserPage = () => {
         setStartDate(''); setGradeId(''); setParentName('');
         setAddress(''); setSchoolId(''); setInstitution('');
         setErrors({});
+    };
+
+    const handleOpenPicker = (type) => {
+        setPickerType(type);
+        setShowAssetPicker(true);
     };
 
     /* ── Step 2 — toggle course/workshop selection in modal ── */
@@ -526,7 +549,7 @@ const CreateUserPage = () => {
                                             <div className="cu-map-header">
                                                 <span className="cu-map-title">Courses</span>
                                                 <span className="cu-map-count">{selectedCourses.length} Mapped</span>
-                                                <button className="cu-btn-add" onClick={() => { setCourseSearch(''); setShowCourseModal(true); }}>
+                                                <button className="cu-btn-add" onClick={() => handleOpenPicker('Courses')}>
                                                     <Plus size={14} /> Add
                                                 </button>
                                             </div>
@@ -559,7 +582,7 @@ const CreateUserPage = () => {
                                             <div className="cu-map-header">
                                                 <span className="cu-map-title">Workshops</span>
                                                 <span className="cu-map-count">{selectedWorkshops.length} Mapped</span>
-                                                <button className="cu-btn-add" onClick={() => { setWorkshopSearch(''); setShowWorkshopModal(true); }}>
+                                                <button className="cu-btn-add" onClick={() => handleOpenPicker('Workshops')}>
                                                     <Plus size={14} /> Add
                                                 </button>
                                             </div>
@@ -594,62 +617,36 @@ const CreateUserPage = () => {
                 </div>
             </div>
 
-            {/* ── Modals (Outside the grid) ── */}
-            <Modal isOpen={showCourseModal} onClose={() => setShowCourseModal(false)} title="Select Courses">
-                <div className="cu-picker">
-                    <div className="cu-picker-search">
-                        <Search size={16} className="cu-picker-search-icon" />
-                        <input placeholder="Search courses..." value={courseSearch} onChange={e => setCourseSearch(e.target.value)} />
-                    </div>
-                    <div className="cu-picker-list">
-                        {filteredModalCourses.length === 0 ? (
-                            <div className="cu-picker-empty">No courses found.</div>
-                        ) : filteredModalCourses.map(c => {
-                            const checked = selectedCourses.some(sc => sc.id === c.id);
-                            return (
-                                <label key={c.id} className={`cu-picker-item ${checked ? 'cu-picker-item-on' : ''}`}>
-                                    <input type="checkbox" checked={checked} onChange={() => toggleCourse(c)} />
-                                    <div className="cu-picker-item-info">
-                                        <span className="cu-picker-item-name">{c.title || c.name}</span>
-                                        <span className="cu-picker-item-cat">{c.category || ''}</span>
-                                    </div>
-                                </label>
-                            );
-                        })}
-                    </div>
-                    <div className="cu-picker-footer">
-                        <span>{selectedCourses.length} selected</span>
-                        <button className="cu-btn-primary" onClick={() => setShowCourseModal(false)}>Done</button>
-                    </div>
-                </div>
-            </Modal>
-
-            <Modal isOpen={showWorkshopModal} onClose={() => setShowWorkshopModal(false)} title="Select Workshops">
-                <div className="cu-picker">
-                    <div className="cu-picker-search">
-                        <Search size={16} className="cu-picker-search-icon" />
-                        <input placeholder="Search workshops..." value={workshopSearch} onChange={e => setWorkshopSearch(e.target.value)} />
-                    </div>
-                    <div className="cu-picker-list">
-                        {filteredModalWorkshops.length === 0 ? (
-                            <div className="cu-picker-empty">No workshops found.</div>
-                        ) : filteredModalWorkshops.map(w => {
-                            const checked = selectedWorkshops.some(sw => sw.id === w.id);
-                            return (
-                                <label key={w.id} className={`cu-picker-item ${checked ? 'cu-picker-item-on' : ''}`}>
-                                    <input type="checkbox" checked={checked} onChange={() => toggleWorkshop(w)} />
-                                    <div className="cu-picker-item-info">
-                                        <span className="cu-picker-item-name">{w.title || w.name}</span>
-                                        <span className="cu-picker-item-cat">{w.category || ''}</span>
-                                    </div>
-                                </label>
-                            );
-                        })}
-                    </div>
-                    <div className="cu-picker-footer">
-                        <span>{selectedWorkshops.length} selected</span>
-                        <button className="cu-btn-primary" onClick={() => setShowWorkshopModal(false)}>Done</button>
-                    </div>
+            {/* Asset Picker Modal */}
+            <Modal
+                isOpen={showAssetPicker}
+                onClose={() => setShowAssetPicker(false)}
+                title={`${pickerType} Mapping`}
+            >
+                <AssetPicker
+                    type={pickerType}
+                    onSelect={(asset) => {
+                        const setter = pickerType === 'Courses' ? setSelectedCourses : setSelectedWorkshops;
+                        setter(prev => {
+                            const exists = prev.some(c => c.id === asset.id);
+                            if (exists) return prev.filter(c => c.id !== asset.id);
+                            return [...prev, asset];
+                        });
+                    }}
+                    selectedIds={(pickerType === 'Courses' ? selectedCourses : selectedWorkshops).map(c => c.id)}
+                    selectedFilters={{
+                        userType: subscriptionType === 'ultra' ? 'Ultra' : subscriptionType === 'premium' ? 'Premium' : 'School',
+                        gradeIds: [Number(gradeId)],
+                        schoolIds: schoolId ? [Number(schoolId)] : [],
+                        assignmentMode: 'User'
+                    }}
+                    schools={schools}
+                    grades={grades}
+                    onFilterChange={() => { }}
+                />
+                <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                    <button onClick={() => setShowAssetPicker(false)} style={{ padding: '8px 20px', border: '1px solid #d1d5db', borderRadius: '6px', background: 'white', cursor: 'pointer' }}>Close</button>
+                    <button onClick={() => setShowAssetPicker(false)} style={{ padding: '8px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Save Selections</button>
                 </div>
             </Modal>
 

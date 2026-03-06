@@ -323,27 +323,27 @@ const UsersPage = () => {
 
       {/* ===== ROW 2: Stats Cards ===== */}
       <div className="up-stats-row">
-        <button
+        <div
           className={`up-stat-card up-stat-ultra ${(selectedType || '').toLowerCase() === 'ultra' ? 'up-stat-active' : ''}`}
-          onClick={() => handleStatClick('ultra')}
+          style={{ cursor: 'default' }}
         >
           <span className="up-stat-num">{ultraCount}</span>
           <span className="up-stat-label">Ultra</span>
-        </button>
-        <button
+        </div>
+        <div
           className={`up-stat-card up-stat-premium ${(selectedType || '').toLowerCase() === 'premium' ? 'up-stat-active' : ''}`}
-          onClick={() => handleStatClick('premium')}
+          style={{ cursor: 'default' }}
         >
           <span className="up-stat-num">{premiumCount}</span>
           <span className="up-stat-label">Premium</span>
-        </button>
-        <button
+        </div>
+        <div
           className={`up-stat-card up-stat-school ${(selectedType || '').toLowerCase() === 'school' ? 'up-stat-active' : ''}`}
-          onClick={() => handleStatClick('school')}
+          style={{ cursor: 'default' }}
         >
           <span className="up-stat-num">{schoolCount}</span>
           <span className="up-stat-label">Schools</span>
-        </button>
+        </div>
       </div>
 
       {/* ===== ROW 3: Filter Bar ===== */}
@@ -666,11 +666,10 @@ const UsersPage = () => {
         .up-stat-card {
           display: flex; flex-direction: column; align-items: center; justify-content: center;
           padding: 14px 32px; border-radius: 10px;
-          border: 2px solid transparent; background: #fff; cursor: pointer;
+          border: 2px solid transparent; background: #fff;
           transition: all 0.15s; min-width: 100px;
           box-shadow: 0 1px 3px rgba(0,0,0,0.04);
         }
-        .up-stat-card:hover { transform: translateY(-1px); box-shadow: 0 3px 10px rgba(0,0,0,0.08); }
         .up-stat-num { font-size: 22px; font-weight: 700; color: #1e293b; line-height: 1.2; }
         .up-stat-label { font-size: 12px; font-weight: 600; color: #64748b; text-transform: capitalize; }
 

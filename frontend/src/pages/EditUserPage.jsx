@@ -3,7 +3,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronLeft, Loader2 } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Toast from '../components/common/Toast';
-import { getUsers, getGrades, getSchools, updateStudent } from '../services/api';
+import Modal from '../components/common/Modal';
+import AssetPicker from '../components/mapping/AssetPicker';
+import { getUsers, getGrades, getSchools, updateStudent, getCourses, getEntitlements } from '../services/api';
 
 const EditUserPage = () => {
     const navigate = useNavigate();
@@ -34,6 +36,11 @@ const EditUserPage = () => {
     const [profilePicPreview, setProfilePicPreview] = useState(null);
     const [errors, setErrors] = useState({});
     const [toast, setToast] = useState(null);
+    const [mappedCourses, setMappedCourses] = useState([]);
+    const [showCourseModal, setShowCourseModal] = useState(false);
+    const [allCourses, setAllCourses] = useState([]);
+    const [pickerType, setPickerType] = useState(null);
+    const [showAssetPicker, setShowAssetPicker] = useState(false);
     const showToast = (msg, type = 'success') => setToast({ message: msg, type });
 
     useEffect(() => {
@@ -64,14 +71,17 @@ const EditUserPage = () => {
                     const nameParts = (user.name || '').trim().split(' ');
                     const fn = nameParts[0] || '';
                     const ln = nameParts.slice(1).join(' ') || '';
-                    const sn = ''; // Surname is explicitly set to empty as per requirement
-
-                    const sType = user.subscription_type || user.type || '';
+                    const sn = '';
 
                     const gId = typeof user.grade === 'object' ? user.grade?.id : (user.grade || user.grade_id || '');
                     const sId = typeof user.school === 'object' ? user.school?.id : (user.school || user.school_id || '');
 
-                    const isSchool = sId && Number(sId) !== 0;
+                    // Fix 1 — Subscription type sync with userKind radio
+                    const sType = user.subscription_type || '';
+                    setSubscriptionType(sType);
+                    // userKind should be based on school AND subscription_type
+                    const isSchool = (sId && Number(sId) !== 0) || sType === 'school';
+                    setUserKind(isSchool ? 'school' : 'user');
 
                     const data = {
                         userKind: isSchool ? 'school' : 'user',
@@ -91,6 +101,21 @@ const EditUserPage = () => {
                     };
                     populateFieldsFromData(data);
                     if (data.profilePic) setProfilePicPreview(data.profilePic);
+
+                    // Fix 4 — Load existing mappings in loadAll useEffect
+                    try {
+                        const [coursesRes, entRes] = await Promise.all([
+                            getCourses(),
+                            getEntitlements()
+                        ]);
+                        const courses = Array.isArray(coursesRes?.data) ? coursesRes.data : (Array.isArray(coursesRes) ? coursesRes : []);
+                        setAllCourses(courses);
+                        const allEnt = Array.isArray(entRes?.data) ? entRes.data : (Array.isArray(entRes) ? entRes : []);
+                        const userEnt = allEnt.filter(e => String(e.student) === String(id) || String(e.student_id) === String(id));
+                        setMappedCourses(userEnt);
+                    } catch (e) {
+                        console.warn('Could not load entitlements:', e);
+                    }
                 }
             } catch (e) {
                 console.error('Error loading user:', e);
@@ -158,6 +183,15 @@ const EditUserPage = () => {
         if (userKind === 'school' && !schoolId) errs.schoolId = 'Please select a school';
         setErrors(errs);
         return Object.keys(errs).length === 0;
+    };
+
+    const handleRemoveCourse = (course) => {
+        setMappedCourses(prev => prev.filter(c => c.id !== course.id));
+    };
+
+    const handleOpenPicker = (type) => {
+        setPickerType(type);
+        setShowAssetPicker(true);
     };
 
     const handleSave = async () => {
@@ -391,6 +425,88 @@ const EditUserPage = () => {
                             </div>
                         </div>
                     </div>
+
+                    {/* Mapping Section */}
+                    <div style={{ marginTop: '32px', borderTop: '1px solid #e5e7eb', paddingTop: '24px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#111827', margin: 0 }}>
+                                Courses <span style={{ fontSize: '13px', color: '#6b7280', fontWeight: '400', marginLeft: '8px' }}>{mappedCourses.length} Mapped</span>
+                            </h3>
+                            <button onClick={() => handleOpenPicker('Courses')} style={{ background: 'white', border: '1px solid #d1d5db', padding: '6px 14px', borderRadius: '6px', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>
+                                + Add
+                            </button>
+                        </div>
+
+                        {mappedCourses.length === 0 ? (
+                            <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '32px', textAlign: 'center', color: '#9ca3af', fontSize: '14px' }}>
+                                No courses mapped yet. Click + Add to select.
+                            </div>
+                        ) : (
+                            <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', overflow: 'hidden' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                                    <thead>
+                                        <tr style={{ background: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
+                                            <th style={thStyle}>#</th>
+                                            <th style={thStyle}>NAME</th>
+                                            <th style={thStyle}>CATEGORY</th>
+                                            <th style={thStyle}>MAPPED DATE</th>
+                                            <th style={thStyle}>ACTIONS</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {mappedCourses.map((course, idx) => (
+                                            <tr key={course.id} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                                                <td style={tdStyle}>{idx + 1}</td>
+                                                <td style={tdStyle}>{course.content_title || course.title}</td>
+                                                <td style={tdStyle}>
+                                                    <span style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                                                        {course.category || 'N/A'}
+                                                    </span>
+                                                </td>
+                                                <td style={tdStyle}>{course.created_at ? new Date(course.created_at).toLocaleDateString() : 'N/A'}</td>
+                                                <td style={tdStyle}>
+                                                    <button onClick={() => handleRemoveCourse(course)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}>🗑</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Asset Picker Modal */}
+                    <Modal
+                        isOpen={showAssetPicker}
+                        onClose={() => setShowAssetPicker(false)}
+                        title={`${pickerType} Mapping`}
+                    >
+                        <AssetPicker
+                            type={pickerType}
+                            onSelect={(asset) => {
+                                setMappedCourses(prev => {
+                                    const exists = prev.some(c => c.id === asset.id);
+                                    if (exists) return prev.filter(c => c.id !== asset.id);
+                                    return [...prev, asset];
+                                });
+                            }}
+                            selectedIds={mappedCourses.map(c => c.id)}
+                            selectedFilters={{
+                                userType: subscriptionType === 'ultra' ? 'Ultra' : subscriptionType === 'premium' ? 'Premium' : 'School',
+                                gradeIds: [Number(gradeId)],
+                                schoolIds: schoolId ? [Number(schoolId)] : [],
+                                assignmentMode: 'User'
+                            }}
+                            schools={schools}
+                            grades={grades}
+                            onFilterChange={() => { }}
+                        />
+                        <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                            <button onClick={() => setShowAssetPicker(false)} style={{ padding: '8px 20px', border: '1px solid #d1d5db', borderRadius: '6px', background: 'white', cursor: 'pointer' }}>Close</button>
+                            <button onClick={() => setShowAssetPicker(false)} style={{ padding: '8px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Save Selections</button>
+                        </div>
+                    </Modal>
+
                 </div>
             </div>
 
@@ -432,5 +548,7 @@ const labelStyle = {
 const errStyle = {
     fontSize: '12px', color: '#ef4444', fontWeight: '500', marginTop: '2px', display: 'block',
 };
+const thStyle = { padding: '10px 16px', textAlign: 'left', fontSize: '11px', fontWeight: '600', color: '#6b7280', letterSpacing: '0.05em' };
+const tdStyle = { padding: '12px 16px', fontSize: '13px', color: '#374151' };
 
 export default EditUserPage;
