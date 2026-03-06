@@ -60,7 +60,7 @@ export const addChapter = (data) => client.post(courses.addChapter, data);
 export const createQuiz = (data) => client.post(courses.createQuiz, data);
 export const updateChapter = (id, data) => client.patch(`${courses.updateChapter}/${id}`, data);
 export const deleteChapter = (id) => client.delete(`${courses.deleteChapter}/${id}`);
-export const updateQuiz = (id, data) => client.patch(`${courses.updateQuiz}/${id}`, data);
+export const updateQuiz = (id, data) => client.post(courses.updateQuiz, { quiz_id: id, ...data });
 export const deleteQuiz = (id) => client.delete(`${courses.deleteQuiz}/${id}`);
 export const updateChapterOrder = (data) => client.post(courses.updateChapterOrder, data);
 export const updateCourseVisibility = (data) => client.post(courses.updateCourseVisibility, data);

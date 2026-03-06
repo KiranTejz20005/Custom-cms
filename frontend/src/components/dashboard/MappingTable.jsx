@@ -17,16 +17,20 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId, assetType, hideA
 
   const getCategoryDisplay = (mapping) => {
     if (!mapping) return '—';
+    // Prefer actual course category (e.g. "Foundations"); never use content_type ("course") for Category column
     const preferredCategory =
       mapping.category_name ||
       mapping.content_category ||
       mapping.course_category ||
-      mapping.category;
+      mapping.category ||
+      mapping.A_category ||
+      (mapping.course && (mapping.course.category || mapping.course.A_category)) ||
+      (mapping.content && (mapping.content.category || mapping.content.A_category));
 
     const normalized = String(preferredCategory || '').trim();
     if (normalized) return normalized;
 
-    return mapping.content_type || '—';
+    return '—';
   };
 
   const getDisplayId = (mapping) => {

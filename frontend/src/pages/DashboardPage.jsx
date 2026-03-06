@@ -193,11 +193,14 @@ const DashboardPage = () => {
         setLoading(true);
         setFetchError(null);
         try {
-            const res = await getMappings({
-                limit: 1000, // Fetch more for client-side filtering
-                offset: 0,
-                search: filters.search || undefined,
-            });
+            const [res, coursesRes] = await Promise.all([
+                getMappings({
+                    limit: 1000, // Fetch more for client-side filtering
+                    offset: 0,
+                    search: filters.search || undefined,
+                }),
+                getCourses()
+            ]);
 
             // Xano can return { items: [...] } or { data: [...] } or a plain array
             let rows = [];
@@ -208,6 +211,25 @@ const DashboardPage = () => {
             } else if (Array.isArray(res?.data)) {
                 rows = res.data;
             }
+
+            // Build course id -> category map (course table has A_category or category e.g. "Foundations")
+            const courseList = Array.isArray(coursesRes) ? coursesRes : (coursesRes?.data ?? coursesRes?.items ?? []);
+            const courseCategoryByContentId = {};
+            (courseList || []).forEach(c => {
+                const id = c.id ?? c.course_id;
+                const category = c.category ?? c.A_category ?? c.category_name;
+                if (id != null && category != null) courseCategoryByContentId[String(id)] = category;
+            });
+
+            // Enrich course mappings with category from course table so CMS shows "Foundations" etc., not "course"
+            rows = rows.map(r => {
+                if (normalizeContentType(r.content_type) === 'course' && !(r.category ?? r.category_name ?? r.content_category ?? r.course_category)) {
+                    const contentId = String(r.content_id ?? r.course_id ?? '');
+                    const fromCourse = courseCategoryByContentId[contentId];
+                    if (fromCourse) return { ...r, category: fromCourse };
+                }
+                return r;
+            });
 
             // Categories are helper selections, not standalone mappings in dashboard.
             rows = rows.filter(r => normalizeContentType(r.content_type || r.category) !== 'category');

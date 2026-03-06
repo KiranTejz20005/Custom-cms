@@ -77,7 +77,7 @@ const NewCoursePage = () => {
     const [mappingType, setMappingType] = useState('both');
     const [selectedUserTypes, setSelectedUserTypes] = useState([]);
     const [selectedSchoolIds, setSelectedSchoolIds] = useState([]);
-    const [selectedGradeId, setSelectedGradeId] = useState('');
+    const [selectedGradeIds, setSelectedGradeIds] = useState([]);
     const [schoolSearch, setSchoolSearch] = useState('');
     const [schools, setSchools] = useState([]);
     const [grades, setGrades] = useState([]);
@@ -91,6 +91,7 @@ const NewCoursePage = () => {
     const [mappedSearch, setMappedSearch] = useState('');
     const [mappedSchools, setMappedSchools] = useState([]);
     const [unmappedSchools, setUnmappedSchools] = useState([]);
+    const [gradesDropdownOpen, setGradesDropdownOpen] = useState(false);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -248,7 +249,15 @@ const NewCoursePage = () => {
             setLoading(true);
             await updateQuiz(activeItem.id, {
                 title: activeItem.title,
-                questions: activeItem.questions
+                questions: (activeItem.questions || []).map((q, idx) => ({
+                    question_text: q.question,
+                    answer_a: q.a,
+                    answer_b: q.b,
+                    answer_c: q.c,
+                    answer_d: q.d,
+                    correct_answer: q.correct_answer,
+                    sequence_order: idx + 1
+                }))
             });
             toast.success("Quiz saved successfully.");
         } catch (err) {
@@ -457,7 +466,8 @@ const NewCoursePage = () => {
         const relevantMappings = mappings.filter(m => {
             const isThisCourse = String(m.course_id || m.content_id) === String(currentCourseId);
             const matchesUserType = selectedUserTypes.length === 0 || selectedUserTypes.some(ut => String(ut).toLowerCase() === String(m.subscription_type).toLowerCase());
-            const matchesGrade = !selectedGradeId || (m.grade_ids || []).map(String).includes(String(selectedGradeId));
+            const mGradeIds = (m.grade_ids || []).map(String);
+                const matchesGrade = selectedGradeIds.length === 0 || selectedGradeIds.some(gid => mGradeIds.includes(String(gid)));
             return isThisCourse && matchesUserType && matchesGrade;
         });
 
@@ -467,15 +477,15 @@ const NewCoursePage = () => {
         const currentUnmapped = schools.filter(s => !mappedSchoolIds.has(Number(s.id)));
         setMappedSchools(currentMapped);
         setUnmappedSchools(currentUnmapped);
-    }, [selectedUserTypes, selectedGradeId, currentCourseId, mappings, schools]);
+    }, [selectedUserTypes, selectedGradeIds, currentCourseId, mappings, schools]);
 
     const handleApplyMapping = async () => {
         if (!currentCourseId) {
             toast.error("Please save course details first.");
             return;
         }
-        if (!selectedGradeId) {
-            toast.error("Please select a grade.");
+        if (selectedGradeIds.length === 0) {
+            toast.error("Please select at least one grade.");
             return;
         }
         if (selectedUserTypes.length === 0) {
@@ -499,7 +509,7 @@ const NewCoursePage = () => {
                         content_id: String(currentCourseId),
                         content_title: courseName,
                         school_id: Number(school.id),
-                        grade_ids: [Number(selectedGradeId)],
+                        grade_ids: selectedGradeIds.map(Number),
                         subscription_type: userType.toLowerCase(),
                         is_active: true,
                         assigned_by: 1
@@ -532,7 +542,7 @@ const NewCoursePage = () => {
                 course_id: currentCourseId,
                 visibility_level: "public",
                 school_ids: selectedSchoolIds,
-                grade_id: selectedGradeId,
+                grade_id: selectedGradeIds[0] ?? null,
                 mapping_type: mappingType,
                 tier: selectedUserTypes[0]?.toLowerCase() || null
             });
@@ -576,7 +586,7 @@ const NewCoursePage = () => {
             const isCurrentlyMapped = courseMappings.some(m => {
                 // Grade match
                 const mGrades = Array.isArray(m.grade_ids) ? m.grade_ids : (m.grade_id ? [m.grade_id] : []);
-                const gradeMatch = !selectedGradeId || mGrades.includes(Number(selectedGradeId));
+                const gradeMatch = selectedGradeIds.length === 0 || selectedGradeIds.some(gid => mGrades.includes(Number(gid)));
 
                 if (!gradeMatch) return false;
 
@@ -1425,7 +1435,7 @@ const NewCoursePage = () => {
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', padding: '0 32px 64px' }}>
                         {/* Upper Controls Card */}
                         <div style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px', display: 'flex', gap: '24px', alignItems: 'stretch' }}>
-                            {/* Grades Dropdown */}
+                            {/* Grades Multi-Select */}
                             <div style={{
                                 background: 'white',
                                 border: '1px solid #cbd5e1',
@@ -1433,22 +1443,61 @@ const NewCoursePage = () => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 width: '380px',
-                                overflow: 'hidden'
+                                position: 'relative'
                             }}>
                                 <div style={{ padding: '0 16px', fontSize: '14px', fontWeight: '700', color: '#1e293b', borderRight: '1px solid #cbd5e1', height: '100%', display: 'flex', alignItems: 'center', background: '#f8fafc' }}>
                                     Grades*
                                 </div>
-                                <div style={{ flex: 1, position: 'relative' }}>
-                                    <select
-                                        value={selectedGradeId}
-                                        onChange={(e) => setSelectedGradeId(e.target.value)}
-                                        style={{ width: '100%', padding: '12px 16px', border: 'none', background: 'transparent', outline: 'none', fontSize: '14px', fontWeight: '600', appearance: 'none', cursor: 'pointer' }}
-                                    >
-                                        <option value="">Select Grade</option>
-                                        {grades.map(g => <option key={g.id} value={g.id}>{g.name || `Grade ${g.id}`}</option>)}
-                                    </select>
-                                    <ChevronDown size={16} orientation="down" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#64748b' }} />
+                                <div
+                                    onClick={() => setGradesDropdownOpen(prev => !prev)}
+                                    style={{ flex: 1, padding: '12px 36px 12px 16px', cursor: 'pointer', fontSize: '14px', fontWeight: '600', color: selectedGradeIds.length ? '#1e293b' : '#64748b', minHeight: '44px', display: 'flex', alignItems: 'center' }}
+                                >
+                                    {selectedGradeIds.length === 0
+                                        ? 'Select grades'
+                                        : grades.length > 0 && selectedGradeIds.length === grades.length
+                                            ? 'All grades selected'
+                                            : grades
+                                                .filter(g => selectedGradeIds.includes(g.id))
+                                                .map(g => g.name || `Grade ${g.id}`)
+                                                .join(', ')}
                                 </div>
+                                <ChevronDown size={16} style={{ position: 'absolute', right: '12px', top: '50%', transform: gradesDropdownOpen ? 'translateY(-50%) rotate(180deg)' : 'translateY(-50%)', pointerEvents: 'none', color: '#64748b' }} />
+                                {gradesDropdownOpen && (
+                                    <>
+                                        <div style={{ position: 'fixed', inset: 0, zIndex: 10 }} onClick={() => setGradesDropdownOpen(false)} />
+                                        <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, marginTop: '4px', background: 'white', border: '1px solid #cbd5e1', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', zIndex: 20, maxHeight: '240px', overflowY: 'auto', padding: '8px 0' }}>
+                                            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px 16px', fontSize: '14px', fontWeight: '600', borderBottom: '1px solid #e2e8f0' }}>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={grades.length > 0 && selectedGradeIds.length === grades.length}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        setSelectedGradeIds(e.target.checked ? grades.map(g => g.id) : []);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                                                />
+                                                <span>All grades</span>
+                                            </label>
+                                            {grades.map(g => (
+                                                <label key={g.id} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', padding: '10px 16px', fontSize: '14px', fontWeight: '500' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedGradeIds.includes(g.id)}
+                                                        onChange={(e) => {
+                                                            e.stopPropagation();
+                                                            if (e.target.checked) setSelectedGradeIds([...selectedGradeIds, g.id]);
+                                                            else setSelectedGradeIds(selectedGradeIds.filter(id => id !== g.id));
+                                                        }}
+                                                        onClick={(e) => e.stopPropagation()}
+                                                        style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                                                    />
+                                                    <span>{g.name || `Grade ${g.id}`}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </>
+                                )}
                             </div>
 
                             {/* User Type Card */}

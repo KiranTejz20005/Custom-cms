@@ -43,7 +43,7 @@ const endpoints = {
         createQuiz: `${XANO_COURSES_BASE_URL}/create_quiz`,
         updateChapter: `${XANO_COURSES_BASE_URL}/add_chapter`,
         deleteChapter: `${XANO_COURSES_BASE_URL}/add_chapter`,
-        updateQuiz: `${XANO_COURSES_BASE_URL}/create_quiz`,
+        updateQuiz: `${XANO_COURSES_BASE_URL}/update_quiz`,
         deleteQuiz: `${XANO_COURSES_BASE_URL}/create_quiz`,
         updateChapterOrder: `${XANO_COURSES_BASE_URL}/update_chapter_sequence`, // FIXED: was update_chapter_order
         updateCourseVisibility: `${XANO_COURSES_BASE_URL}/update_course_visibility`,
