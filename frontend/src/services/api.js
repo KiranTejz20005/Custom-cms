@@ -9,8 +9,22 @@ export const getGrades = () => client.get(members.getAllGrades);
 export const getSchools = () => client.get(members.getAllSchools);
 export const getUsers = () => client.get(members.getAllUsers);
 export const updateUser = (id, data) => client.post(members.updateUser(id), data);
-export const deleteUser = (id) => client.delete(members.deleteUser(id));
+export const deleteUser = async (id) => {
+    const response = await fetch(members.deleteStudent, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ student_id: id }),
+    });
+    if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.message || 'Delete failed');
+    }
+    return response.json();
+};
+export const updateStudent = (data) => client.post(members.updateStudent, data);
+export const deleteStudent = (id) => client.post(members.deleteStudent, { student_id: id });
 export const getUserCount = (params) => client.get(members.countUsers, params);
+export const createStudent = (data) => client.post(members.createStudent, data);
 
 // Asset Endpoints (Courses Base)
 export const getCourses = () => client.get(courses.getAllCourses);
