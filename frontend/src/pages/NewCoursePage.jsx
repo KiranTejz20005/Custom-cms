@@ -92,6 +92,7 @@ const NewCoursePage = () => {
     const [mappedSchools, setMappedSchools] = useState([]);
     const [unmappedSchools, setUnmappedSchools] = useState([]);
     const [gradesDropdownOpen, setGradesDropdownOpen] = useState(false);
+    const [showPreviewModal, setShowPreviewModal] = useState(false);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -417,6 +418,14 @@ const NewCoursePage = () => {
                 toast.error("Video (YouTube URL) is required.");
                 return;
             }
+            const nameToCheck = (courseName || '').trim().toLowerCase();
+            if (nameToCheck) {
+                const existingTitles = (allCourses || []).map(c => (c.title || c.name || c.A_title || '').trim().toLowerCase()).filter(Boolean);
+                if (existingTitles.includes(nameToCheck)) {
+                    toast.error("A course with this name already exists. Please choose a unique course name.");
+                    return;
+                }
+            }
             try {
                 setLoading(true);
                 const payload = {
@@ -486,16 +495,22 @@ const NewCoursePage = () => {
     useEffect(() => {
         if (!schools.length) return;
 
+        const getSchoolId = (m) => {
+            const id = m.school_id ?? m.school?.id ?? (typeof m.school === 'number' ? m.school : null);
+            const num = Number(id);
+            return Number.isFinite(num) ? num : null;
+        };
+
         // Find schools that are already mapped for this course + selected user types + selected grade
-        const relevantMappings = mappings.filter(m => {
-            const isThisCourse = String(m.course_id || m.content_id) === String(currentCourseId);
-            const matchesUserType = selectedUserTypes.length === 0 || selectedUserTypes.some(ut => String(ut).toLowerCase() === String(m.subscription_type).toLowerCase());
+        const relevantMappings = (mappings || []).filter(m => {
+            const isThisCourse = String(m.course_id ?? m.content_id ?? '') === String(currentCourseId);
+            const matchesUserType = selectedUserTypes.length === 0 || selectedUserTypes.some(ut => String(ut).toLowerCase() === String(m.subscription_type || '').toLowerCase());
             const mGradeIds = (m.grade_ids || []).map(String);
-                const matchesGrade = selectedGradeIds.length === 0 || selectedGradeIds.some(gid => mGradeIds.includes(String(gid)));
+            const matchesGrade = selectedGradeIds.length === 0 || selectedGradeIds.some(gid => mGradeIds.includes(String(gid)));
             return isThisCourse && matchesUserType && matchesGrade;
         });
 
-        const mappedSchoolIds = new Set(relevantMappings.map(m => Number(m.school_id)));
+        const mappedSchoolIds = new Set(relevantMappings.map(getSchoolId).filter(Boolean));
 
         const currentMapped = schools.filter(s => mappedSchoolIds.has(Number(s.id)));
         const currentUnmapped = schools.filter(s => !mappedSchoolIds.has(Number(s.id)));
@@ -546,9 +561,28 @@ const NewCoursePage = () => {
 
             await Promise.all(mappingPromises);
 
-            // Refresh mappings to reflect changes in UI (useEffect will handle re-distributing schools)
-            const freshMappings = await getMappings();
-            setMappings(freshMappings.data || freshMappings.items || (Array.isArray(freshMappings) ? freshMappings : []));
+            // Build the mappings we just created so UI stays correct even if refetch shape differs
+            const justCreated = mappedSchools.flatMap(school =>
+                selectedUserTypes.map(ut => ({
+                    course_id: currentCourseId,
+                    content_id: String(currentCourseId),
+                    content_type: 'course',
+                    school_id: Number(school.id),
+                    subscription_type: ut.toLowerCase(),
+                    grade_ids: selectedGradeIds.map(Number)
+                }))
+            );
+
+            // Refresh from server and merge with what we just created so schools stay in Mapped
+            try {
+                const res = await getMappings();
+                const fromServer = Array.isArray(res) ? res : (res?.data ?? res?.items ?? res?.records ?? []);
+                const existingIds = new Set((fromServer || []).map(m => `${m.course_id ?? m.content_id}-${m.school_id}-${(m.subscription_type || '').toLowerCase()}`));
+                const newOnes = justCreated.filter(m => !existingIds.has(`${m.course_id}-${m.school_id}-${m.subscription_type}`));
+                setMappings([...(fromServer || []), ...newOnes]);
+            } catch (e) {
+                setMappings(prev => [...(prev || []), ...justCreated]);
+            }
 
             toast.success(`Successfully mapped to ${mappedSchools.length} schools.`);
         } catch (err) {
@@ -592,7 +626,7 @@ const NewCoursePage = () => {
                 visibility_level: 'public'
             });
             toast.success('Course Published successfully');
-            navigate('/admin/courses');
+            navigate('/admin/mappings/view?assetType=course');
         } catch (err) {
             console.error("Publish error:", err);
             toast.error("Failed to publish course.");
@@ -684,6 +718,25 @@ const NewCoursePage = () => {
                         />
                     </div>
                     <div style={{ display: 'flex', gap: '12px' }}>
+                        {step === 3 && (
+                            <button
+                                type="button"
+                                onClick={() => setShowPreviewModal(true)}
+                                style={{
+                                    padding: '10px 24px',
+                                    background: 'white',
+                                    color: '#2563eb',
+                                    border: '2px solid #2563eb',
+                                    borderRadius: '6px',
+                                    fontWeight: '700',
+                                    fontSize: '14px',
+                                    cursor: 'pointer',
+                                    minWidth: '140px'
+                                }}
+                            >
+                                Preview Course
+                            </button>
+                        )}
                         <button
                             onClick={step === 3 ? handlePublish : handleNext}
                             disabled={loading || (step === 1 && !isStep1MandatoryFilled)}
@@ -1251,24 +1304,25 @@ const NewCoursePage = () => {
                             </div>
                         </div>
 
-                        {/* Right Side: Editor Workspace */}
-                        <div style={{ flex: 1, background: '#f1f5f9', padding: '48px', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                        {/* Right Side: Editor Workspace - 440px mobile layout */}
+                        <div style={{ flex: 1, background: '#f1f5f9', padding: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto' }}>
                             {activeItem ? (
                                 <div style={{
-                                    width: '100%',
+                                    width: '440px',
+                                    maxWidth: '100%',
                                     background: '#ffffff',
                                     borderRadius: '12px',
                                     padding: '40px',
+                                    boxSizing: 'border-box',
                                     boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
                                     display: 'flex',
                                     flexDirection: 'column',
-                                    alignItems: 'center',
                                     gap: '32px',
                                     minHeight: '100%',
                                     overflowX: 'hidden'
                                 }}>
-                                    {/* Centered Mobile Column (440px) */}
-                                    <div style={{ width: '440px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
+                                    {/* Mobile Column 440px */}
+                                    <div style={{ width: '100%', maxWidth: '440px', display: 'flex', flexDirection: 'column', gap: '32px', minWidth: 0 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
                                             <input
                                                 type="text"
@@ -1444,15 +1498,26 @@ const NewCoursePage = () => {
                                                     </div>
                                                 </div>
 
-                                                <div style={{ width: '100%', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', background: 'white' }}>
+                                                <div style={{ width: '100%', maxWidth: '440px', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden', background: 'white', boxSizing: 'border-box' }}>
                                                     <JoditEditor
                                                         value={activeItem.content}
                                                         config={{
                                                             ...editorConfig,
-                                                            height: 600
+                                                            height: 600,
+                                                            width: 440
                                                         }}
                                                         onBlur={newContent => updateActiveItem({ content: newContent })}
                                                     />
+                                                </div>
+                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleSaveChapter}
+                                                        disabled={loading}
+                                                        style={{ background: '#2563eb', color: 'white', border: 'none', padding: '10px 32px', borderRadius: '8px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
+                                                    >
+                                                        {loading ? 'Saving...' : 'Save Chapter'}
+                                                    </button>
                                                 </div>
                                             </div>
                                         )}
@@ -1746,6 +1811,59 @@ const NewCoursePage = () => {
                                         </button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Preview Course Modal */}
+                {showPreviewModal && (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', padding: '24px', boxSizing: 'border-box' }} onClick={() => setShowPreviewModal(false)}>
+                        <div style={{ background: '#fff', borderRadius: '12px', maxWidth: '640px', width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' }} onClick={e => e.stopPropagation()}>
+                            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e293b' }}>Preview Course</h2>
+                                <button type="button" onClick={() => setShowPreviewModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: '#64748b' }}><X size={24} /></button>
+                            </div>
+                            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                {/* Course Details */}
+                                <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>Course Details</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px' }}>
+                                        <div><strong>Course name:</strong> {courseName || '—'}</div>
+                                        <div><strong>Category:</strong> {selectedCategory || '—'}</div>
+                                        {headerImage && <div><strong>Header image:</strong> <img src={headerImage} alt="Header" style={{ maxWidth: '200px', maxHeight: '80px', objectFit: 'cover', borderRadius: '6px', marginTop: '4px' }} /></div>}
+                                        {thumbnail && <div><strong>Thumbnail:</strong> <img src={thumbnail} alt="Thumbnail" style={{ maxWidth: '120px', maxHeight: '80px', objectFit: 'cover', borderRadius: '6px', marginTop: '4px' }} /></div>}
+                                        <div><strong>Video URL:</strong> {youtubeUrl || '—'}</div>
+                                        <div><strong>Description:</strong> <span style={{ whiteSpace: 'pre-wrap' }}>{(courseDescription || '—').slice(0, 200)}{(courseDescription || '').length > 200 ? '...' : ''}</span></div>
+                                        <div><strong>Instructors:</strong> {selectedInstructors.length ? selectedInstructors.map(i => i.name).join(', ') : '—'}</div>
+                                    </div>
+                                </div>
+                                {/* Chapters */}
+                                <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>Chapters & Quizzes</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '14px' }}>
+                                        {items.length === 0 ? <span style={{ color: '#94a3b8' }}>No chapters or quizzes added</span> : items.map((item, idx) => (
+                                            <div key={`${item.type}-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                <span style={{ color: '#64748b', fontWeight: '600', minWidth: '24px' }}>{idx + 1}.</span>
+                                                <span style={{ background: item.type === 'quiz' ? '#eff6ff' : '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: '#475569' }}>{item.type === 'quiz' ? 'Quiz' : (item.type === 'chapter' ? 'Chapter' : item.type)}</span>
+                                                <span>{item.title || 'Untitled'}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                {/* Map & Publish */}
+                                <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>Map & Publish</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px' }}>
+                                        <div><strong>Grades:</strong> {selectedGradeIds.length === 0 ? '—' : grades.length > 0 && selectedGradeIds.length === grades.length ? 'All grades' : grades.filter(g => selectedGradeIds.includes(g.id)).map(g => g.name || `Grade ${g.id}`).join(', ')}</div>
+                                        <div><strong>User types:</strong> {selectedUserTypes.length ? selectedUserTypes.join(', ') : '—'}</div>
+                                        <div><strong>Mapped schools:</strong> {mappedSchools.length} school{mappedSchools.length !== 1 ? 's' : ''} {mappedSchools.length > 0 && mappedSchools.slice(0, 5).map(s => s.name).join(', ')}{mappedSchools.length > 5 ? ` and ${mappedSchools.length - 5} more` : ''}</div>
+                                        <div><strong>Unmapped schools:</strong> {unmappedSchools.length} school{unmappedSchools.length !== 1 ? 's' : ''}</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                                <button type="button" onClick={() => setShowPreviewModal(false)} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Close</button>
                             </div>
                         </div>
                     </div>
