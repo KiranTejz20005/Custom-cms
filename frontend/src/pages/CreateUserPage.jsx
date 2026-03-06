@@ -496,13 +496,24 @@ const CreateUserPage = () => {
                             <>
 
                                 {/* Student summary */}
-                                <div className="cu-student-card">
-                                    <div className="cu-student-name">{createdStudent?.name}</div>
-                                    <div className="cu-student-meta">
-                                        <span className={`up-badge ${(createdStudent?.subscription_type || '').toLowerCase()}`}>
-                                            {(createdStudent?.subscription_type || '').toUpperCase()}
+                                <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: '8px', padding: '16px 20px', marginBottom: '20px' }}>
+                                    {/* Row 1: Name */}
+                                    <div style={{ fontSize: '15px', fontWeight: '600', color: '#111827', marginBottom: '6px' }}>
+                                        {createdStudent?.name}
+                                    </div>
+                                    {/* Row 2: subscription badge + grade */}
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                                        <span style={{
+                                            background: (createdStudent?.subscription_type || '').toLowerCase() === 'ultra' ? '#fff7ed' : '#eff6ff',
+                                            color: (createdStudent?.subscription_type || '').toLowerCase() === 'ultra' ? '#c2410c' : '#1d4ed8',
+                                            border: `1px solid ${(createdStudent?.subscription_type || '').toLowerCase() === 'ultra' ? '#fed7aa' : '#bfdbfe'}`,
+                                            padding: '2px 10px', borderRadius: '4px', fontSize: '12px', fontWeight: '700', textTransform: 'uppercase'
+                                        }}>
+                                            {createdStudent?.subscription_type}
                                         </span>
-                                        <span className="cu-student-grade">{gradeName ? `Grade ${gradeName.replace(/grade\s*/i, '')}` : ''}</span>
+                                        <span style={{ fontSize: '13px', color: '#6b7280' }}>
+                                            {gradeName ? `Grade ${gradeName.replace(/grade\s*/i, '')}` : ''}
+                                        </span>
                                     </div>
                                 </div>
 
