@@ -285,14 +285,16 @@ const CreateUserPage = () => {
                                 </button>
                             </div>
                             {/* ── Step 2 Row 2: stepper CENTERED, Cancel + Apply Mappings RIGHT ── */}
-                            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '24px', position: 'relative' }}>
-                                <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '12px' }}>
-                                    <span style={{ color: '#6b7280', fontSize: '15px' }}>Student Details</span>
+                            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', marginBottom: '24px', paddingBottom: '16px', borderBottom: '1px solid #e5e7eb' }}>
+                                <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '12px', pointerEvents: 'none' }}>
+                                    <span style={{ color: '#6b7280', fontSize: '15px', fontWeight: '500' }}>Student Details</span>
                                     <span style={{ color: '#9ca3af', fontSize: '18px' }}>→</span>
-                                    <span style={{ color: '#2563eb', fontWeight: '700', fontSize: '15px' }}>Map &amp; Publish</span>
+                                    <span style={{ color: '#2563eb', fontSize: '15px', fontWeight: '700' }}>Map &amp; Publish</span>
                                 </div>
-                                <div style={{ marginLeft: 'auto', display: 'flex', gap: '8px' }}>
-                                    <button onClick={handleCancel} style={{ background: 'white', border: '1px solid #d1d5db', padding: '8px 20px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>Cancel</button>
+                                <div style={{ display: 'flex', gap: '8px', zIndex: 1 }}>
+                                    <button onClick={handleCancel} style={{ background: 'white', border: '1px solid #d1d5db', padding: '8px 20px', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}>
+                                        Cancel
+                                    </button>
                                     <button
                                         onClick={handleApplyMappings}
                                         disabled={applyingMappings || (selectedCourses.length === 0 && selectedWorkshops.length === 0)}
@@ -302,8 +304,6 @@ const CreateUserPage = () => {
                                     </button>
                                 </div>
                             </div>
-                            {/* ── Divider ── */}
-                            <div style={{ borderBottom: '1px solid #e5e7eb', marginBottom: '24px' }} />
                         </>
                     )}
 
