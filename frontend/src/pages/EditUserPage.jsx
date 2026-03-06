@@ -15,7 +15,7 @@ const EditUserPage = () => {
     const [schools, setSchools] = useState([]);
 
     // Original data for reset
-    const [original, setOriginal] = useState(null);
+    const [originalData, setOriginalData] = useState(null);
 
     // Form fields
     const [userKind, setUserKind] = useState('user');
@@ -45,40 +45,55 @@ const EditUserPage = () => {
                     getGrades(),
                     getSchools(),
                 ]);
-                const allUsers = Array.isArray(usersRes) ? usersRes : (usersRes.data || []);
-                const user = allUsers.find(u => String(u.id) === String(id));
 
                 const gData = Array.isArray(gradesRes) ? gradesRes : (gradesRes.data || []);
                 setGrades([...gData].sort((a, b) => Number(a.id) - Number(b.id)));
                 setSchools(Array.isArray(schoolsRes) ? schoolsRes : (schoolsRes.data || []));
 
+                const allUsers = Array.isArray(usersRes?.data) ? usersRes.data
+                    : Array.isArray(usersRes?.data?.users) ? usersRes.data.users
+                        : Array.isArray(usersRes) ? usersRes : [];
+
+                const user = allUsers.find(u => String(u.id) === String(id));
+                console.log('User data from Xano:', user);
+
                 if (user) {
+                    setOriginalData(user);
+
+                    // Split name into parts
                     const nameParts = (user.name || '').trim().split(' ');
-                    const sn = nameParts.length > 2 ? nameParts[0] : '';
-                    const fn = nameParts.length > 2 ? nameParts[1] : (nameParts[0] || '');
-                    const ln = nameParts.length > 2 ? nameParts.slice(2).join(' ') : (nameParts[1] || '');
-                    const hasSchool = Number(user.school || user.school_id || 0) !== 0;
+                    const fn = nameParts[0] || '';
+                    const ln = nameParts.slice(1).join(' ') || '';
+                    const sn = ''; // Surname is explicitly set to empty as per requirement
+
+                    const sType = user.subscription_type || user.type || '';
+
+                    const gId = typeof user.grade === 'object' ? user.grade?.id : (user.grade || user.grade_id || '');
+                    const sId = typeof user.school === 'object' ? user.school?.id : (user.school || user.school_id || '');
+
+                    const isSchool = sId && Number(sId) !== 0;
 
                     const data = {
-                        userKind: hasSchool ? 'school' : 'user',
+                        userKind: isSchool ? 'school' : 'user',
                         surname: sn,
                         firstName: fn,
                         lastName: ln,
-                        mobile: user.mobile || '',
+                        mobile: user.mobile || user.phone || '',
                         email: user.email || '',
-                        subscriptionType: user.subscription_type || '',
+                        subscriptionType: sType,
                         startDate: user.start_date ? user.start_date.split('T')[0] : '',
-                        gradeId: String(user.grade || user.grade_id || ''),
+                        gradeId: String(gId),
                         parentName: user.parent_name || '',
                         address: user.address || '',
-                        schoolId: String(user.school || user.school_id || ''),
+                        schoolId: String(sId),
                         institution: user.institution || '',
+                        profilePic: user.profile_pic?.url || user.profile_pic || null
                     };
-                    setOriginal(data);
-                    populateFields(data);
+                    populateFieldsFromData(data);
+                    if (data.profilePic) setProfilePicPreview(data.profilePic);
                 }
             } catch (e) {
-                console.error('Failed to load user', e);
+                console.error('Error loading user:', e);
             } finally {
                 setLoading(false);
             }
@@ -86,7 +101,7 @@ const EditUserPage = () => {
         loadAll();
     }, [id]);
 
-    const populateFields = (data) => {
+    const populateFieldsFromData = (data) => {
         setUserKind(data.userKind);
         setSurname(data.surname);
         setFirstName(data.firstName);
@@ -103,7 +118,33 @@ const EditUserPage = () => {
     };
 
     const handleReset = () => {
-        if (original) populateFields(original);
+        if (originalData) {
+            const user = originalData;
+            const nameParts = (user.name || '').trim().split(' ');
+            const fn = nameParts[0] || '';
+            const ln = nameParts.slice(1).join(' ') || '';
+            const sn = '';
+
+            const gId = typeof user.grade === 'object' ? user.grade?.id : (user.grade || user.grade_id || '');
+            const sId = typeof user.school === 'object' ? user.school?.id : (user.school || user.school_id || '');
+            const isSchool = sId && Number(sId) !== 0;
+
+            populateFieldsFromData({
+                userKind: isSchool ? 'school' : 'user',
+                surname: sn,
+                firstName: fn,
+                lastName: ln,
+                mobile: user.mobile || user.phone || '',
+                email: user.email || '',
+                subscriptionType: user.subscription_type || user.type || '',
+                startDate: user.start_date ? user.start_date.split('T')[0] : '',
+                gradeId: String(gId),
+                parentName: user.parent_name || '',
+                address: user.address || '',
+                schoolId: String(sId),
+                institution: user.institution || '',
+            });
+        }
         setErrors({});
     };
 
@@ -132,10 +173,10 @@ const EditUserPage = () => {
                 school: userKind === 'school' ? (Number(schoolId) || 0) : 0,
                 subscription_type: subscriptionType.toLowerCase(),
                 start_date: startDate || null,
+                mobile: mobile,
+                parent_name: parentName.trim(),
+                address: address.trim(),
             };
-            if (mobile.trim()) body.mobile = mobile.trim();
-            if (parentName.trim()) body.parent_name = parentName.trim();
-            if (address.trim()) body.address = address.trim();
 
             await updateStudent(body);
             showToast('User updated successfully!');
@@ -244,9 +285,10 @@ const EditUserPage = () => {
                             <div style={{ marginBottom: 16 }}>
                                 <label style={labelStyle}>Subscription Type*</label>
                                 <select className={`cu-select${errors.subscriptionType ? ' cu-input-err' : ''}`} value={subscriptionType} onChange={e => setSubscriptionType(e.target.value)}>
-                                    <option value="">Select</option>
-                                    <option value="Premium">Premium</option>
-                                    <option value="Ultra">Ultra</option>
+                                    <option value="">Select...</option>
+                                    <option value="premium">Premium</option>
+                                    <option value="ultra">Ultra</option>
+                                    <option value="school">School</option>
                                 </select>
                                 {errors.subscriptionType && <span style={errStyle}>{errors.subscriptionType}</span>}
                             </div>

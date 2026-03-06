@@ -111,10 +111,10 @@ const CreateUserPage = () => {
                 school: Number(schoolId) || 0,
                 subscription_type: subscriptionType.toLowerCase(),
                 start_date: startDate || null,
+                mobile: mobile,
+                parent_name: parentName.trim(),
+                address: address.trim(),
             };
-            if (mobile.trim()) body.mobile = mobile.trim();
-            if (parentName.trim()) body.parent_name = parentName.trim();
-            if (address.trim()) body.address = address.trim();
 
             const res = await createStudent(body);
             const studentId = res?.id || res?.data?.id || res?.user_id;
@@ -869,21 +869,21 @@ const CreateUserPage = () => {
           font-size: 13px; color: #64748b; font-weight: 500;
         }
       `}} />
-        {toast && (
-            <div style={{
-                position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
-                zIndex: 9999, background: toast.type === 'success' ? '#f0fdf4' : '#fef2f2',
-                border: `1px solid ${toast.type === 'success' ? '#86efac' : '#fca5a5'}`,
-                color: toast.type === 'success' ? '#166534' : '#991b1b',
-                padding: '12px 24px', borderRadius: '8px', display: 'flex',
-                alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '500',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
-            }}>
-                <span>{toast.type === 'success' ? '✓' : '✕'}</span>
-                <span>{toast.message}</span>
-                <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: '8px', color: 'inherit' }}>✕</button>
-            </div>
-        )}
+            {toast && (
+                <div style={{
+                    position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+                    zIndex: 9999, background: toast.type === 'success' ? '#f0fdf4' : '#fef2f2',
+                    border: `1px solid ${toast.type === 'success' ? '#86efac' : '#fca5a5'}`,
+                    color: toast.type === 'success' ? '#166534' : '#991b1b',
+                    padding: '12px 24px', borderRadius: '8px', display: 'flex',
+                    alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '500',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+                }}>
+                    <span>{toast.type === 'success' ? '✓' : '✕'}</span>
+                    <span>{toast.message}</span>
+                    <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: '8px', color: 'inherit' }}>✕</button>
+                </div>
+            )}
         </Layout>
     );
 };

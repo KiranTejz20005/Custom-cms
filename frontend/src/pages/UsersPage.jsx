@@ -370,26 +370,6 @@ const UsersPage = () => {
           </select>
         </div>
 
-        {/* School dropdown — shown first when school or all/empty */}
-        {((selectedType || '').toLowerCase() === 'school' || (selectedType || '').toLowerCase() === '' || (selectedType || '').toLowerCase() === 'all') && (
-          <>
-            <div className="up-filter-divider" />
-            <div className="up-filter-group">
-              <span className="up-filter-group-label">School</span>
-              <select
-                className="up-filter-select"
-                value={selectedSchool}
-                onChange={(e) => { setSelectedSchool(e.target.value); }}
-              >
-                <option value="">All</option>
-                {schools.map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-          </>
-        )}
-
         <div className="up-filter-divider" />
 
         {/* Grades multi-select */}
@@ -418,6 +398,26 @@ const UsersPage = () => {
             </div>
           )}
         </div>
+
+        {/* School dropdown — only when school or all/empty */}
+        {((selectedType || '').toLowerCase() === 'school' || (selectedType || '').toLowerCase() === '' || (selectedType || '').toLowerCase() === 'all') && (
+          <>
+            <div className="up-filter-divider" />
+            <div className="up-filter-group">
+              <span className="up-filter-group-label">School</span>
+              <select
+                className="up-filter-select"
+                value={selectedSchool}
+                onChange={(e) => { setSelectedSchool(e.target.value); }}
+              >
+                <option value="">All</option>
+                {schools.map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
 
         {/* Submit + Reset */}
         <button
