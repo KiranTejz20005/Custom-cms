@@ -268,6 +268,14 @@ const DashboardPage = () => {
                 });
             }
 
+            // Sort so latest first (by created_at desc, then id desc)
+            rows = [...rows].sort((a, b) => {
+                const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+                if (bTime !== aTime) return bTime - aTime;
+                return (Number(b.id) || 0) - (Number(a.id) || 0);
+            });
+
             setData(rows);
             setTotal(res?.total || rows.length);
         } catch (err) {

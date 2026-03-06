@@ -17,6 +17,7 @@ function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/mappings/view" replace />} />
+          <Route path="/admin/courses" element={<DashboardPage />} />
           <Route path="/admin/mappings/view" element={<DashboardPage />} />
           <Route path="/admin/mappings/new" element={<NewCoursePage />} />
           <Route path="/admin/mappings/create" element={<MappingControlPage mode="create" />} />

@@ -557,7 +557,7 @@ const NewCoursePage = () => {
                 is_published: true,
                 visibility_level: 'public'
             });
-            toast.success('Course published successfully!');
+            toast.success('Course Published successfully');
             navigate('/admin/courses');
         } catch (err) {
             console.error("Publish error:", err);
@@ -630,7 +630,7 @@ const NewCoursePage = () => {
                     borderBottom: '1px solid #e2e8f0'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <ChevronLeft size={20} color="#64748b" style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/courses')} />
+                        <ChevronLeft size={20} color="#64748b" style={{ cursor: 'pointer' }} onClick={() => { if (step === 1) navigate('/admin/courses'); else setStep(s => s - 1); }} />
                         <h1 style={{ fontSize: '20px', fontWeight: '800', color: '#1e293b', margin: 0 }}>Courses / New Course</h1>
                         <input
                             type="text"
@@ -1217,23 +1217,34 @@ const NewCoursePage = () => {
                                 }}>
                                     {/* Centered Mobile Column (440px) */}
                                     <div style={{ width: '440px', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                                        <input
-                                            type="text"
-                                            value={activeItem.title}
-                                            onChange={(e) => updateActiveItem({ title: e.target.value })}
-                                            placeholder="Untitled Item"
-                                            style={{
-                                                width: '100%',
-                                                fontSize: '28px',
-                                                fontWeight: '700',
-                                                color: '#1e293b',
-                                                padding: '8px 0',
-                                                border: 'none',
-                                                borderBottom: '1px solid #e2e8f0',
-                                                background: 'transparent',
-                                                outline: 'none',
-                                            }}
-                                        />
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
+                                            <input
+                                                type="text"
+                                                value={activeItem.title}
+                                                onChange={(e) => updateActiveItem({ title: e.target.value })}
+                                                placeholder="Untitled Item"
+                                                style={{
+                                                    flex: 1,
+                                                    fontSize: '28px',
+                                                    fontWeight: '700',
+                                                    color: '#1e293b',
+                                                    padding: '8px 0',
+                                                    border: 'none',
+                                                    borderBottom: '1px solid #e2e8f0',
+                                                    background: 'transparent',
+                                                    outline: 'none',
+                                                }}
+                                            />
+                                            {(activeItem.type === 'chapter' || activeItem.type === 'challenge' || activeItem.type === 'goal') && (
+                                                <button
+                                                    onClick={handleSaveChapter}
+                                                    disabled={loading}
+                                                    style={{ flexShrink: 0, background: '#2563eb', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '8px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
+                                                >
+                                                    {loading ? 'Saving...' : 'Save Chapter'}
+                                                </button>
+                                            )}
+                                        </div>
 
                                         {activeItem.type === 'quiz' ? (
                                             /* Quiz Editor UI */
@@ -1391,16 +1402,6 @@ const NewCoursePage = () => {
                                                         onBlur={newContent => updateActiveItem({ content: newContent })}
                                                     />
                                                 </div>
-
-                                                <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '16px' }}>
-                                                    <button
-                                                        onClick={handleSaveChapter}
-                                                        disabled={loading}
-                                                        style={{ background: '#2563eb', color: 'white', border: 'none', padding: '10px 32px', borderRadius: '8px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
-                                                    >
-                                                        {loading ? 'Saving...' : 'Save Chapter'}
-                                                    </button>
-                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -1545,8 +1546,9 @@ const NewCoursePage = () => {
                                     }}
                                     disabled={selectedUnmappedIds.length === 0}
                                     style={{
-                                        width: '60px',
-                                        height: '40px',
+                                        minWidth: '72px',
+                                        height: '56px',
+                                        padding: '8px 12px',
                                         background: selectedUnmappedIds.length > 0 ? '#2563eb' : '#bfdbfe',
                                         border: 'none',
                                         borderRadius: '6px',
@@ -1557,14 +1559,15 @@ const NewCoursePage = () => {
                                         alignItems: 'center',
                                         justifyContent: 'center',
                                         gap: '2px',
-                                        transition: 'all 0.2s'
+                                        transition: 'all 0.2s',
+                                        overflow: 'visible'
                                     }}
                                 >
-                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
                                         <ArrowRight size={18} />
                                     </div>
-                                    <span style={{ fontSize: '9px', fontWeight: '700' }}>Add</span>
-                                    {selectedUnmappedIds.length > 0 && <span style={{ fontSize: '8px' }}>{selectedUnmappedIds.length} Schools</span>}
+                                    <span style={{ fontSize: '10px', fontWeight: '700', lineHeight: 1.2 }}>Add</span>
+                                    {selectedUnmappedIds.length > 0 && <span style={{ fontSize: '10px', lineHeight: 1.2 }}>{selectedUnmappedIds.length} Schools</span>}
                                 </button>
                             </div>
 
