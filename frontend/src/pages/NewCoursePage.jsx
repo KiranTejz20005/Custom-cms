@@ -6,7 +6,7 @@ import {
     ChevronRight, ChevronLeft, Image as ImageIcon, Video, HelpCircle,
     ChevronDown, ChevronUp, Upload, Link as LinkIcon, X, GripVertical,
     FileText, MoreVertical, Trash2, Plus, Layout as LayoutIcon, Rocket,
-    Paperclip, Youtube
+    Paperclip, Youtube, ArrowRight
 } from 'lucide-react';
 import {
     getCategories, getCourses, createCourse, addChapter, createQuiz,
@@ -25,7 +25,6 @@ const NewCoursePage = () => {
     const [attachments, setAttachments] = useState([]);
     const [youtubeUrl, setYoutubeUrl] = useState('');
     const [allCourses, setAllCourses] = useState([]); // List for Map & Publish tabs
-    const [activeTab, setActiveTab] = useState('unmapped'); // unmapped | mapped
     const [currentCourseId, setCurrentCourseId] = useState(null);
     const [instructorsList] = useState([
         { id: 1, name: 'Jasmine Ahuja Kher', avatar: 'https://i.pravatar.cc/150?u=jasmine' },
@@ -70,6 +69,7 @@ const NewCoursePage = () => {
     const [activeItem, setActiveItem] = useState(null);
     const [searchTerm, setSearchTerm] = useState('');
     const [openMenuId, setOpenMenuId] = useState(null);
+    const [draggedItemIndex, setDraggedItemIndex] = useState(null);
 
     // Step 3: Mapping State
     const [mappingType, setMappingType] = useState('both');
@@ -80,6 +80,15 @@ const NewCoursePage = () => {
     const [schools, setSchools] = useState([]);
     const [grades, setGrades] = useState([]);
     const [mappings, setMappings] = useState([]);
+    const [activeTabMapping, setActiveTabMapping] = useState('unmapped');
+
+    // New Mapping UI State
+    const [selectedUnmappedIds, setSelectedUnmappedIds] = useState([]);
+    const [selectedMappedIds, setSelectedMappedIds] = useState([]);
+    const [unmappedSearch, setUnmappedSearch] = useState('');
+    const [mappedSearch, setMappedSearch] = useState('');
+    const [mappedSchools, setMappedSchools] = useState([]);
+    const [unmappedSchools, setUnmappedSchools] = useState([]);
 
     useEffect(() => {
         const fetchInitialData = async () => {
@@ -94,6 +103,12 @@ const NewCoursePage = () => {
                 ]);
 
                 setMappings(mappingsRes.data || mappingsRes.items || (Array.isArray(mappingsRes) ? mappingsRes : []));
+
+                // Set initial school lists
+                const schoolsData = schoolsRes.data || schoolsRes.items || (Array.isArray(schoolsRes) ? schoolsRes : []);
+                setSchools(schoolsData);
+                setUnmappedSchools(schoolsData);
+                setMappedSchools([]);
 
                 // Get categories from dedicated endpoint
                 const rawCats = catsRes.data || catsRes.items || (Array.isArray(catsRes) ? catsRes : []);
@@ -276,6 +291,49 @@ const NewCoursePage = () => {
         }
     };
 
+    const handleDragStart = (e, index) => {
+        setDraggedItemIndex(index);
+        e.dataTransfer.effectAllowed = 'move';
+        // HTML5 drag and drop hack to show something while dragging
+        e.dataTransfer.setData('text/plain', '');
+    };
+
+    const handleDragOver = (e) => {
+        e.preventDefault(); // Required to allow drop
+    };
+
+    const handleDrop = async (e, droppedOnIndex) => {
+        e.preventDefault();
+        if (draggedItemIndex === null || draggedItemIndex === droppedOnIndex) return;
+
+        const filteredItems = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
+
+        // Find positions in main items array
+        const draggedItem = filteredItems[draggedItemIndex];
+        const targetItem = filteredItems[droppedOnIndex];
+
+        const draggedOriginalIndex = items.findIndex(item => item.id === draggedItem.id);
+        const targetOriginalIndex = items.findIndex(item => item.id === targetItem.id);
+
+        const newItems = [...items];
+        const [removed] = newItems.splice(draggedOriginalIndex, 1);
+        newItems.splice(targetOriginalIndex, 0, removed);
+
+        setItems(newItems);
+        setDraggedItemIndex(null);
+
+        // Notify backend of new sequence
+        try {
+            await updateChapterOrder(newItems.map((item, idx) => ({
+                id: item.id,
+                order: idx + 1,
+                type: item.type === 'quiz' ? 'quiz' : 'chapter'
+            })));
+        } catch (err) {
+            console.error("Order persistence failed:", err);
+        }
+    };
+
     const handleMoveItem = async (e, filteredIndex, direction) => {
         e.stopPropagation();
 
@@ -343,6 +401,110 @@ const NewCoursePage = () => {
         }
     };
 
+    const handleToggleAllUnmapped = (checked) => {
+        const visible = unmappedSchools.filter(s =>
+            s.name.toLowerCase().includes(unmappedSearch.toLowerCase()) ||
+            String(s.id).includes(unmappedSearch) ||
+            (s.area || '').toLowerCase().includes(unmappedSearch.toLowerCase()) ||
+            (s.city || '').toLowerCase().includes(unmappedSearch.toLowerCase())
+        );
+        if (checked) {
+            setSelectedUnmappedIds(visible.map(s => s.id));
+        } else {
+            setSelectedUnmappedIds([]);
+        }
+    };
+
+    const handleToggleAllMapped = (checked) => {
+        const visible = mappedSchools.filter(s =>
+            s.name.toLowerCase().includes(mappedSearch.toLowerCase()) ||
+            String(s.id).includes(mappedSearch) ||
+            (s.area || '').toLowerCase().includes(mappedSearch.toLowerCase()) ||
+            (s.city || '').toLowerCase().includes(mappedSearch.toLowerCase())
+        );
+        if (checked) {
+            setSelectedMappedIds(visible.map(s => s.id));
+        } else {
+            setSelectedMappedIds([]);
+        }
+    };
+
+    // Sync Mapped/Unmapped Schools whenever filters change
+    useEffect(() => {
+        if (!schools.length) return;
+
+        // Find schools that are already mapped for this course + selected user types + selected grade
+        const relevantMappings = mappings.filter(m => {
+            const isThisCourse = String(m.course_id || m.content_id) === String(currentCourseId);
+            const matchesUserType = selectedUserTypes.length === 0 || selectedUserTypes.some(ut => String(ut).toLowerCase() === String(m.subscription_type).toLowerCase());
+            const matchesGrade = !selectedGradeId || (m.grade_ids || []).map(String).includes(String(selectedGradeId));
+            return isThisCourse && matchesUserType && matchesGrade;
+        });
+
+        const mappedSchoolIds = new Set(relevantMappings.map(m => Number(m.school_id)));
+
+        const currentMapped = schools.filter(s => mappedSchoolIds.has(Number(s.id)));
+        const currentUnmapped = schools.filter(s => !mappedSchoolIds.has(Number(s.id)));
+        setMappedSchools(currentMapped);
+        setUnmappedSchools(currentUnmapped);
+    }, [selectedUserTypes, selectedGradeId, currentCourseId, mappings, schools]);
+
+    const handleApplyMapping = async () => {
+        if (!currentCourseId) {
+            toast.error("Please save course details first.");
+            return;
+        }
+        if (!selectedGradeId) {
+            toast.error("Please select a grade.");
+            return;
+        }
+        if (selectedUserTypes.length === 0) {
+            toast.error("Please select at least one user type (Premium/Ultra).");
+            return;
+        }
+        if (mappedSchools.length === 0) {
+            toast.error("No schools in the Mapped list.");
+            return;
+        }
+
+        setLoading(true);
+        try {
+            // Logic: For each school in mappedSchools and each selectedUserType, create/update mapping
+            const mappingPromises = [];
+
+            for (const school of mappedSchools) {
+                for (const userType of selectedUserTypes) {
+                    mappingPromises.push(createMapping({
+                        content_type: 'course',
+                        content_id: String(currentCourseId),
+                        content_title: courseName,
+                        school_id: Number(school.id),
+                        grade_ids: [Number(selectedGradeId)],
+                        subscription_type: userType.toLowerCase(),
+                        is_active: true,
+                        assigned_by: 1
+                    }));
+                }
+            }
+
+            // We could also call deleteMapping for unmappedSchools if we had their mapping IDs,
+            // but for now we focus on creating mappings for the selected ones.
+
+            await Promise.all(mappingPromises);
+
+            // Refresh mappings to reflect changes in UI (useEffect will handle re-distributing schools)
+            const freshMappings = await getMappings();
+            setMappings(freshMappings.data || freshMappings.items || (Array.isArray(freshMappings) ? freshMappings : []));
+
+            toast.success(`Successfully mapped to ${mappedSchools.length} schools.`);
+        } catch (err) {
+            console.error("Failed to apply mapping:", err);
+            toast.error("An error occurred while applying mapping.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleUpdateVisibility = async () => {
         try {
             setLoading(true);
@@ -364,16 +526,21 @@ const NewCoursePage = () => {
     };
 
     const handlePublish = async () => {
+        if (!currentCourseId) {
+            toast.error("Create a course first.");
+            return;
+        }
+        setLoading(true);
         try {
-            setLoading(true);
             await publishCourse({
-                course_id: currentCourseId,
-                visibility_level: "published"
+                course_id: Number(currentCourseId),
+                is_published: true,
+                visibility_level: 'public'
             });
-            toast.success("Course published successfully!");
-            navigate('/admin/mappings/view');
+            toast.success('Course published successfully!');
+            navigate('/admin/courses');
         } catch (err) {
-            console.error("Failed to publish course:", err);
+            console.error("Publish error:", err);
             toast.error("Failed to publish course.");
         } finally {
             setLoading(false);
@@ -433,61 +600,61 @@ const NewCoursePage = () => {
         <Layout title="New Course">
             <div className="new-course-page animate-fade-in" style={{ paddingBottom: '40px' }}>
 
-                {/* Header Section */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => navigate(-1)}>
-                            <ChevronLeft size={24} color="#64748b" />
-                            <span style={{ fontSize: '24px', fontWeight: '800', color: '#1e293b' }}>Courses / New Course</span>
-                        </div>
+                {/* Top Action Bar */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '16px 32px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 100 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <ChevronLeft size={20} color="#64748b" style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/courses')} />
+                        <h1 style={{ fontSize: '20px', fontWeight: '800', color: '#1e293b', margin: 0 }}>Courses / New Course</h1>
                         <input
                             type="text"
-                            placeholder="Course name"
+                            placeholder="Course name comes here"
                             value={courseName}
                             onChange={(e) => setCourseName(e.target.value)}
                             style={{
-                                padding: '10px 16px',
-                                borderRadius: '8px',
-                                border: '1px solid #e2e8f0',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '6px',
+                                padding: '8px 16px',
                                 fontSize: '15px',
+                                fontWeight: '500',
                                 width: '300px',
                                 outline: 'none',
-                                background: '#ffffff',
-                                transition: 'all 0.2s'
+                                background: 'white'
                             }}
                         />
                     </div>
-                    <button
-                        onClick={step === 3 ? handlePublish : handleNext}
-                        disabled={loading}
-                        style={{
-                            padding: '10px 32px',
-                            background: '#2563eb',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '8px',
-                            fontWeight: '700',
-                            fontSize: '15px',
-                            cursor: 'pointer',
-                            boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
-                            opacity: loading ? 0.7 : 1
-                        }}
-                    >
-                        {loading ? 'Processing...' : (step === 3 ? 'Publish' : 'Next')}
-                    </button>
+                    <div style={{ display: 'flex', gap: '12px' }}>
+                        <button
+                            onClick={step === 3 ? handlePublish : handleNext}
+                            disabled={loading}
+                            style={{
+                                padding: '10px 48px',
+                                background: '#2563eb',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '6px',
+                                fontWeight: '700',
+                                fontSize: '14px',
+                                cursor: 'pointer',
+                                opacity: loading ? 0.7 : 1,
+                                minWidth: '120px'
+                            }}
+                        >
+                            {loading ? 'Processing...' : (step === 3 ? 'Publish Course' : 'Next')}
+                        </button>
+                    </div>
                 </div>
 
-                {/* Steps Indicator - Refined */}
-                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '48px', marginBottom: '40px', background: 'white', padding: '20px 0', borderBottom: '1px solid #f1f5f9' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setStep(1)}>
-                        <span style={{ fontSize: '18px', fontWeight: step === 1 ? '700' : '500', color: step === 1 ? '#2563eb' : '#64748b' }}>Course Details</span>
-                        <ChevronRight size={18} color="#cbd5e1" />
+                {/* Breadcrumb Steps */}
+                <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '24px', padding: '40px 0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <span style={{ fontSize: '18px', fontWeight: step === 1 ? '700' : '500', color: step === 1 ? '#1e293b' : '#64748b' }}>Course Details</span>
+                        <div style={{ width: '80px', height: '1px', background: '#cbd5e1' }}></div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setStep(2)}>
-                        <span style={{ fontSize: '18px', fontWeight: step === 2 ? '700' : '500', color: step === 2 ? '#2563eb' : '#64748b' }}>Chapters</span>
-                        <ChevronRight size={18} color="#cbd5e1" />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                        <span style={{ fontSize: '18px', fontWeight: step === 2 ? '700' : '500', color: step === 2 ? '#1e293b' : '#64748b' }}>Chapters</span>
+                        <div style={{ width: '80px', height: '1px', background: '#cbd5e1' }}></div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }} onClick={() => setStep(3)}>
+                    <div style={{ display: 'flex', alignItems: 'center' }}>
                         <span style={{ fontSize: '18px', fontWeight: step === 3 ? '700' : '500', color: step === 3 ? '#2563eb' : '#64748b' }}>Map & Publish</span>
                     </div>
                 </div>
@@ -906,11 +1073,15 @@ const NewCoursePage = () => {
                                     {items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase())).map((item, index) => (
                                         <div
                                             key={item.id}
+                                            draggable
+                                            onDragStart={(e) => handleDragStart(e, index)}
+                                            onDragOver={handleDragOver}
+                                            onDrop={(e) => handleDrop(e, index)}
                                             onClick={() => setActiveItem(item)}
                                             style={{
                                                 padding: '14px 16px',
                                                 borderRadius: '10px',
-                                                cursor: 'pointer',
+                                                cursor: 'grab',
                                                 background: activeItem?.id === item.id ? '#f0f7ff' : '#ffffff',
                                                 border: activeItem?.id === item.id ? '1px solid #3b82f6' : '1px solid #e2e8f0',
                                                 display: 'flex',
@@ -918,11 +1089,12 @@ const NewCoursePage = () => {
                                                 gap: '12px',
                                                 transition: 'all 0.2s',
                                                 marginBottom: '4px',
-                                                boxShadow: activeItem?.id === item.id ? '0 2px 8px rgba(59, 130, 246, 0.1)' : 'none'
+                                                boxShadow: activeItem?.id === item.id ? '0 2px 8px rgba(59, 130, 246, 0.1)' : 'none',
+                                                opacity: draggedItemIndex === index ? 0.5 : 1
                                             }}
                                         >
                                             <div style={{ display: 'flex', flexDirection: 'column', color: '#94a3b8', position: 'relative' }}>
-                                                <div style={{ opacity: 0.5 }}><GripVertical size={18} /></div>
+                                                <div style={{ opacity: 0.8, cursor: 'grab' }}><GripVertical size={20} /></div>
                                                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
                                                     <button onClick={(e) => handleMoveItem(e, index, -1)} disabled={index === 0} style={{ flex: 1, background: 'transparent', border: 'none', cursor: index === 0 ? 'default' : 'pointer', color: 'transparent', width: '100%' }} title="Move Up"></button>
                                                     <button onClick={(e) => handleMoveItem(e, index, 1)} disabled={index === items.filter(i => i.title.toLowerCase().includes(searchTerm.toLowerCase())).length - 1} style={{ flex: 1, background: 'transparent', border: 'none', cursor: index === items.length - 1 ? 'default' : 'pointer', color: 'transparent', width: '100%' }} title="Move Down"></button>
@@ -934,7 +1106,7 @@ const NewCoursePage = () => {
                                             </div>
 
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', lineHeight: '1.4' }}>
                                                     {index + 1}. {item.title || 'Untitled Item'}
                                                 </div>
                                             </div>
@@ -1220,217 +1392,237 @@ const NewCoursePage = () => {
                 )}
 
                 {step === 3 && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px', maxWidth: '900px', margin: '0 auto' }}>
-                        {/* Mapping Configuration Card */}
-                        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '40px' }}>
-                            <div style={{ display: 'flex', gap: '40px', marginBottom: '40px', alignItems: 'flex-start' }}>
-                                {/* User Selector Column */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '260px' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
-                                        <input
-                                            type="radio"
-                                            name="mappingType"
-                                            checked={mappingType === 'user'}
-                                            onChange={() => setMappingType('user')}
-                                            style={{ width: '20px', height: '20px', accentColor: '#2563eb' }}
-                                        />
-                                        User
-                                    </label>
-
-                                    {(mappingType === 'user' || mappingType === 'both') && (
-                                        <div style={{
-                                            background: '#ffffff',
-                                            border: '1px solid #cbd5e1',
-                                            borderRadius: '12px',
-                                            padding: '24px 20px',
-                                            display: 'flex',
-                                            flexDirection: 'column',
-                                            gap: '16px',
-                                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)'
-                                        }}>
-                                            {['Premium', 'Ultra'].map(u => (
-                                                <label key={u} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedUserTypes.includes(u)}
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) setSelectedUserTypes([...selectedUserTypes, u]);
-                                                            else setSelectedUserTypes(selectedUserTypes.filter(ut => ut !== u));
-                                                        }}
-                                                        style={{ width: '20px', height: '20px', accentColor: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                                    />
-                                                    <span style={{ fontSize: '18px', fontWeight: '700', color: '#000000' }}>{u}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '32px', padding: '0 32px 64px' }}>
+                        {/* Upper Controls Card */}
+                        <div style={{ background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '24px', display: 'flex', gap: '24px', alignItems: 'stretch' }}>
+                            {/* Grades Dropdown */}
+                            <div style={{
+                                background: 'white',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                width: '380px',
+                                overflow: 'hidden'
+                            }}>
+                                <div style={{ padding: '0 16px', fontSize: '14px', fontWeight: '700', color: '#1e293b', borderRight: '1px solid #cbd5e1', height: '100%', display: 'flex', alignItems: 'center', background: '#f8fafc' }}>
+                                    Grades*
                                 </div>
-
-                                {/* School Selector Column */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', width: '320px' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
-                                        <input
-                                            type="radio"
-                                            name="mappingType"
-                                            checked={mappingType === 'school'}
-                                            onChange={() => setMappingType('school')}
-                                            style={{ width: '20px', height: '20px', accentColor: '#2563eb' }}
-                                        />
-                                        School
-                                    </label>
-
-                                    {(mappingType === 'school' || mappingType === 'both') && (
-                                        <div style={{
-                                            background: '#ffffff',
-                                            border: '1px solid #cbd5e1',
-                                            borderRadius: '12px',
-                                            overflow: 'hidden',
-                                            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.05)'
-                                        }}>
-                                            <div style={{ borderBottom: '1px solid #cbd5e1', padding: '12px 16px' }}>
-                                                <input
-                                                    type="text"
-                                                    placeholder="Search"
-                                                    value={schoolSearch}
-                                                    onChange={(e) => setSchoolSearch(e.target.value)}
-                                                    style={{ width: '100%', border: 'none', outline: 'none', fontSize: '18px', color: '#000000', fontWeight: '700' }}
-                                                />
-                                            </div>
-                                            <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px', maxHeight: '250px', overflowY: 'auto' }}>
-                                                {schools.filter(s => s.name.toLowerCase().includes(schoolSearch.toLowerCase())).map(s => (
-                                                    <label key={s.id} style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedSchoolIds.includes(s.id)}
-                                                            onChange={(e) => {
-                                                                if (e.target.checked) setSelectedSchoolIds([...selectedSchoolIds, s.id]);
-                                                                else setSelectedSchoolIds(selectedSchoolIds.filter(id => id !== s.id));
-                                                            }}
-                                                            style={{ width: '20px', height: '20px', accentColor: '#2563eb', border: '1px solid #cbd5e1', borderRadius: '4px' }}
-                                                        />
-                                                        <span style={{ fontSize: '18px', fontWeight: '700', color: '#000000' }}>{s.name}</span>
-                                                    </label>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-
-                                {/* Both Selector Column */}
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
-                                        <input
-                                            type="radio"
-                                            name="mappingType"
-                                            checked={mappingType === 'both'}
-                                            onChange={() => setMappingType('both')}
-                                            style={{ width: '20px', height: '20px', accentColor: '#2563eb' }}
-                                        />
-                                        Both
-                                    </label>
-                                </div>
-                            </div>
-
-                            {/* Grades Section (Light Gray Bar) */}
-                            <div style={{ background: '#f8fafc', borderRadius: '6px', padding: '30px', display: 'flex', alignItems: 'center', gap: '60px', marginBottom: '32px' }}>
-                                <span style={{ fontSize: '15px', fontWeight: '600', color: '#1e293b' }}>Grades</span>
-                                <div style={{ position: 'relative', flex: 1, maxWidth: '300px' }}>
+                                <div style={{ flex: 1, position: 'relative' }}>
                                     <select
                                         value={selectedGradeId}
                                         onChange={(e) => setSelectedGradeId(e.target.value)}
-                                        style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '15px', fontWeight: '700', appearance: 'none', background: 'transparent' }}
+                                        style={{ width: '100%', padding: '12px 16px', border: 'none', background: 'transparent', outline: 'none', fontSize: '14px', fontWeight: '600', appearance: 'none', cursor: 'pointer' }}
                                     >
                                         <option value="">Select Grade</option>
                                         {grades.map(g => <option key={g.id} value={g.id}>{g.name || `Grade ${g.id}`}</option>)}
                                     </select>
-                                    <ChevronDown size={20} color="#64748b" style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} />
+                                    <ChevronDown size={16} orientation="down" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', color: '#64748b' }} />
                                 </div>
                             </div>
 
-                            {/* Action Buttons */}
-                            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '16px' }}>
+                            {/* User Type Card */}
+                            <div style={{
+                                background: 'white',
+                                border: '1px solid #cbd5e1',
+                                borderRadius: '8px',
+                                display: 'flex',
+                                gap: '32px',
+                                padding: '0 24px',
+                                alignItems: 'center'
+                            }}>
+                                {['Premium', 'Ultra'].map(u => (
+                                    <label key={u} style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedUserTypes.includes(u)}
+                                            onChange={(e) => {
+                                                if (e.target.checked) setSelectedUserTypes([...selectedUserTypes, u]);
+                                                else setSelectedUserTypes(selectedUserTypes.filter(ut => ut !== u));
+                                            }}
+                                            style={{ width: '18px', height: '18px', accentColor: '#2563eb' }}
+                                        />
+                                        <span style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>{u}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Two-Column Mapping Interface */}
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 60px 1fr', gap: '16px', alignItems: 'center' }}>
+                            {/* UnMapped Column */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                    UnMapped <span style={{ fontSize: '18px', fontWeight: '600', color: '#64748b' }}>({unmappedSchools.length})</span>
+                                    <div style={{ flex: 1 }}></div>
+                                    <div style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>
+                                        Show <select style={{ padding: '2px 4px', border: '1px solid #cbd5e1', borderRadius: '4px' }}><option>100</option></select> of {unmappedSchools.length} Records
+                                    </div>
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search by school name, school id, area or city"
+                                    value={unmappedSearch}
+                                    onChange={(e) => setUnmappedSearch(e.target.value)}
+                                    style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
+                                />
+                                <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', height: '500px', display: 'flex', flexDirection: 'column' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                        <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 1 }}>
+                                            <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                                                <th style={{ padding: '12px', width: '40px' }}><input type="checkbox" /></th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Name</th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>School ID</th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Area</th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>City</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody style={{ background: 'white' }}>
+                                            <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                <td style={{ padding: '12px' }}><input type="checkbox" /></td>
+                                                <td colSpan="4" style={{ padding: '12px', fontWeight: '600' }}>All Schools</td>
+                                            </tr>
+                                            {unmappedSchools.filter(s => s.name.toLowerCase().includes(unmappedSearch.toLowerCase())).map(s => (
+                                                <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                    <td style={{ padding: '12px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedUnmappedIds.includes(s.id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) setSelectedUnmappedIds([...selectedUnmappedIds, s.id]);
+                                                                else setSelectedUnmappedIds(selectedUnmappedIds.filter(id => id !== s.id));
+                                                            }}
+                                                        />
+                                                    </td>
+                                                    <td style={{ padding: '12px', fontWeight: '600' }}>{s.name}</td>
+                                                    <td style={{ padding: '12px', color: '#1e293b' }}>#{s.id}</td>
+                                                    <td style={{ padding: '12px', color: '#1e293b' }}>{s.area || '—'}</td>
+                                                    <td style={{ padding: '12px', color: '#1e293b' }}>{s.city || '—'}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {/* Middle Add Button */}
+                            <div style={{ display: 'flex', justifyContent: 'center' }}>
                                 <button
                                     onClick={() => {
-                                        setSelectedUserTypes([]);
-                                        setSelectedSchoolIds([]);
-                                        setMappingType('both');
+                                        const toMove = unmappedSchools.filter(s => selectedUnmappedIds.includes(s.id));
+                                        setMappedSchools([...mappedSchools, ...toMove]);
+                                        setUnmappedSchools(unmappedSchools.filter(s => !selectedUnmappedIds.includes(s.id)));
+                                        setSelectedUnmappedIds([]);
                                     }}
-                                    style={{ padding: '10px 24px', border: '1px solid #e2e8f0', borderRadius: '8px', fontSize: '14px', fontWeight: '600', color: '#64748b', cursor: 'pointer', background: 'white' }}
+                                    disabled={selectedUnmappedIds.length === 0}
+                                    style={{
+                                        width: '60px',
+                                        height: '40px',
+                                        background: selectedUnmappedIds.length > 0 ? '#2563eb' : '#bfdbfe',
+                                        border: 'none',
+                                        borderRadius: '6px',
+                                        color: 'white',
+                                        cursor: selectedUnmappedIds.length > 0 ? 'pointer' : 'default',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '2px',
+                                        transition: 'all 0.2s'
+                                    }}
                                 >
-                                    Reset
-                                </button>
-                                <button
-                                    onClick={handleUpdateVisibility}
-                                    disabled={loading}
-                                    style={{ padding: '10px 48px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '8px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
-                                >
-                                    {loading ? 'Saving...' : 'Save'}
+                                    <div style={{ display: 'flex', alignItems: 'center' }}>
+                                        <ArrowRight size={18} />
+                                    </div>
+                                    <span style={{ fontSize: '9px', fontWeight: '700' }}>Add</span>
+                                    {selectedUnmappedIds.length > 0 && <span style={{ fontSize: '8px' }}>{selectedUnmappedIds.length} Schools</span>}
                                 </button>
                             </div>
-                        </div>
 
-                        {/* Final Publish Status Card */}
-                        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '80px 40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '32px' }}>
-                            <p style={{ fontSize: '16px', fontWeight: '600', color: '#475569', textAlign: 'center', maxWidth: '280px', lineHeight: '1.5' }}>
-                                Once you have configured the mapping and saved the settings, you can publish the course to make it live for students.
-                            </p>
-                            <div style={{ display: 'flex', gap: '16px' }}>
-                                <button style={{ padding: '10px 24px', border: '1px solid #2563eb', color: '#2563eb', background: 'white', borderRadius: '6px', fontSize: '14px', fontWeight: '600', cursor: 'pointer' }}>
-                                    Preview Course
-                                </button>
-                                <button
-                                    onClick={handlePublish}
-                                    disabled={loading}
-                                    style={{ padding: '10px 32px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
-                                >
-                                    {loading ? 'Publishing...' : 'Publish Course'}
-                                </button>
-                            </div>
-                        </div>
-
-                        {/* Mapped/Unmapped Courses Table Section */}
-                        <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', overflow: 'hidden' }}>
-                            <div style={{ display: 'flex', borderBottom: '1px solid #e2e8f0' }}>
-                                <button
-                                    onClick={() => setActiveTab('unmapped')}
-                                    style={{ flex: 1, padding: '16px', border: 'none', background: activeTab === 'unmapped' ? '#f8fafc' : 'white', fontWeight: '700', color: activeTab === 'unmapped' ? '#2563eb' : '#64748b', borderBottom: activeTab === 'unmapped' ? '2px solid #2563eb' : 'none', cursor: 'pointer' }}
-                                >
-                                    Unmapped Courses
-                                </button>
-                                <button
-                                    onClick={() => setActiveTab('mapped')}
-                                    style={{ flex: 1, padding: '16px', border: 'none', background: activeTab === 'mapped' ? '#f8fafc' : 'white', fontWeight: '700', color: activeTab === 'mapped' ? '#2563eb' : '#64748b', borderBottom: activeTab === 'mapped' ? '2px solid #2563eb' : 'none', cursor: 'pointer' }}
-                                >
-                                    Mapped Courses
-                                </button>
-                            </div>
-                            <div style={{ padding: '24px' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                    <thead>
-                                        <tr style={{ borderBottom: '2px solid #f1f5f9' }}>
-                                            <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '700', color: '#64748b' }}>Course Name</th>
-                                            <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '700', color: '#64748b' }}>School ID</th>
-                                            <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '700', color: '#64748b' }}>Area</th>
-                                            <th style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '700', color: '#64748b' }}>City</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {getFilteredCourses().length === 0 ? (
-                                            <tr>
-                                                <td colSpan="4" style={{ padding: '40px', textAlign: 'center', color: '#94a3b8' }}>No courses found</td>
+                            {/* Mapped Column */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                <div style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
+                                    Mapped <span style={{ fontSize: '18px', fontWeight: '600', color: '#64748b' }}>({mappedSchools.length})</span>
+                                    <div style={{ flex: 1 }}></div>
+                                    <button
+                                        onClick={handleApplyMapping}
+                                        disabled={loading}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: (mappedSchools.length > 0 && !loading) ? '#2563eb' : '#bfdbfe',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontSize: '13px',
+                                            fontWeight: '700',
+                                            cursor: (mappedSchools.length > 0 && !loading) ? 'pointer' : 'default'
+                                        }}
+                                    >
+                                        {loading ? 'Processing...' : 'Apply Mapping'}
+                                    </button>
+                                </div>
+                                <input
+                                    type="text"
+                                    placeholder="Search by school name, school id, area or city"
+                                    value={mappedSearch}
+                                    onChange={(e) => setMappedSearch(e.target.value)}
+                                    style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
+                                />
+                                <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', height: '500px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                                        <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 1 }}>
+                                            <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
+                                                <th style={{ padding: '12px', width: '40px' }}><input type="checkbox" /></th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Name</th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>School ID</th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Area</th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>City</th>
                                             </tr>
-                                        ) : (
-                                            getFilteredCourses().map((c, i) => (
-                                                <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                    <td style={{ padding: '16px', fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>{c.title || c.name}</td>
-                                                    <td style={{ padding: '16px', fontSize: '14px', color: '#64748b' }}>{c.displaySchoolId}</td>
-                                                    <td style={{ padding: '16px', fontSize: '14px', color: '#64748b' }}>{c.displayArea}</td>
-                                                    <td style={{ padding: '16px', fontSize: '14px', color: '#64748b' }}>{c.displayCity}</td>
+                                        </thead>
+                                        <tbody style={{ background: 'white' }}>
+                                            {mappedSchools.length === 0 ? (
+                                                <tr>
+                                                    <td colSpan="5" style={{ textAlign: 'center', padding: '100px 0', color: '#94a3b8', fontSize: '14px' }}>No Mapped Items</td>
                                                 </tr>
-                                            ))
-                                        )}
-                                    </tbody>
-                                </table>
+                                            ) : (
+                                                mappedSchools.filter(s => s.name.toLowerCase().includes(mappedSearch.toLowerCase())).map(s => (
+                                                    <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                                        <td style={{ padding: '12px' }}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedMappedIds.includes(s.id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) setSelectedMappedIds([...selectedMappedIds, s.id]);
+                                                                    else setSelectedMappedIds(selectedMappedIds.filter(id => id !== s.id));
+                                                                }}
+                                                            />
+                                                        </td>
+                                                        <td style={{ padding: '12px', fontWeight: '600' }}>{s.name}</td>
+                                                        <td style={{ padding: '12px', color: '#1e293b' }}>#{s.id}</td>
+                                                        <td style={{ padding: '12px', color: '#1e293b' }}>{s.area || '—'}</td>
+                                                        <td style={{ padding: '12px', color: '#1e293b' }}>{s.city || '—'}</td>
+                                                    </tr>
+                                                ))
+                                            )}
+                                        </tbody>
+                                    </table>
+
+                                    {/* UnMap Button at bottom */}
+                                    <div style={{ position: 'absolute', bottom: '16px', right: '16px' }}>
+                                        <button
+                                            onClick={() => {
+                                                const toMove = mappedSchools.filter(s => selectedMappedIds.includes(s.id));
+                                                setUnmappedSchools([...unmappedSchools, ...toMove]);
+                                                setMappedSchools(mappedSchools.filter(s => !selectedMappedIds.includes(s.id)));
+                                                setSelectedMappedIds([]);
+                                            }}
+                                            disabled={selectedMappedIds.length === 0}
+                                            style={{ padding: '8px 24px', background: selectedMappedIds.length > 0 ? '#2563eb' : '#bfdbfe', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '700', cursor: selectedMappedIds.length > 0 ? 'pointer' : 'default' }}
+                                        >
+                                            UnMap
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
