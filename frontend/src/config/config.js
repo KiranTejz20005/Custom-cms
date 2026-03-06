@@ -34,6 +34,17 @@ const endpoints = {
         updateMapping: () => `${DEFAULT_XANO_BASE_URL}/upsert_entitlement`,
         deleteMapping: (id) => `${XANO_COURSES_BASE_URL}/upsert_entitlement/${id}`,
         syncCourse: `${XANO_COURSES_BASE_URL}/sync_course`,
+        // New Course Flow Endpoints
+        createCourse: `${XANO_COURSES_BASE_URL}/create_course`,
+        addChapter: `${XANO_COURSES_BASE_URL}/add_chapter`,
+        createQuiz: `${XANO_COURSES_BASE_URL}/create_quiz`,
+        updateChapter: `${XANO_COURSES_BASE_URL}/add_chapter`,
+        deleteChapter: `${XANO_COURSES_BASE_URL}/add_chapter`,
+        updateQuiz: `${XANO_COURSES_BASE_URL}/create_quiz`,
+        deleteQuiz: `${XANO_COURSES_BASE_URL}/create_quiz`,
+        updateChapterOrder: `${XANO_COURSES_BASE_URL}/update_chapter_order`,
+        updateCourseVisibility: `${XANO_COURSES_BASE_URL}/update_course_visibility`,
+        publishCourse: `${XANO_COURSES_BASE_URL}/publish_course`,
     },
 };
 

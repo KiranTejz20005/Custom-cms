@@ -22,9 +22,21 @@ export const getCategories = () => client.get(courses.getAllCategories);
 // Mapping CRUD (Courses Base)
 export const getMappings = (params) => client.get(courses.getMappings, params);
 export const getMappingById = (id) => client.get(courses.getMapping(id));
-export const createMapping = (data) => client.post(courses.upsertEntitlement, data);
-export const updateMapping = (id, data) => client.post(courses.updateMapping(id), data);
+export const createMapping = (data) => client.patch(courses.upsertEntitlement, data);
+export const updateMapping = (id, data) => client.patch(courses.upsertEntitlement, data);
 export const deleteMapping = (id) => client.delete(courses.deleteMapping(id));
+
+// Course Creation Flow (Courses Base)
+export const createCourse = (data) => client.post(courses.createCourse, data);
+export const addChapter = (data) => client.post(courses.addChapter, data);
+export const createQuiz = (data) => client.post(courses.createQuiz, data);
+export const updateChapter = (id, data) => client.patch(`${courses.updateChapter}/${id}`, data);
+export const deleteChapter = (id) => client.delete(`${courses.deleteChapter}/${id}`);
+export const updateQuiz = (id, data) => client.patch(`${courses.updateQuiz}/${id}`, data);
+export const deleteQuiz = (id) => client.delete(`${courses.deleteQuiz}/${id}`);
+export const updateChapterOrder = (data) => client.patch(courses.updateChapterOrder, data);
+export const updateCourseVisibility = (data) => client.post(courses.updateCourseVisibility, data);
+export const publishCourse = (data) => client.post(courses.updateCourseVisibility, data);
 
 // Default export as courses base (legacy compatibility)
 export default {
