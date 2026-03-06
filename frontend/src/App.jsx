@@ -5,14 +5,20 @@ import DashboardPage from './pages/DashboardPage';
 import MappingControlPage from './pages/MappingControlPage';
 import UsersPage from './pages/UsersPage';
 import SchoolsPage from './pages/SchoolsPage';
+import NewCoursePage from './pages/NewCoursePage';
+
+
+import { Toaster } from 'react-hot-toast';
 
 function App() {
   return (
     <ErrorBoundary>
+      <Toaster position="top-right" />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/mappings/view" replace />} />
           <Route path="/admin/mappings/view" element={<DashboardPage />} />
+          <Route path="/admin/mappings/new" element={<NewCoursePage />} />
           <Route path="/admin/mappings/create" element={<MappingControlPage mode="create" />} />
           <Route path="/admin/mappings/edit/:id" element={<MappingControlPage mode="edit" />} />
           <Route path="/admin/config/users" element={<UsersPage />} />
