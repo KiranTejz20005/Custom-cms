@@ -467,21 +467,292 @@ const DashboardPage = () => {
         <Layout title="Mapped Assets Dashboard">
             <div className="dashboard-content">
 
-                <header className="dashboard-header animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '24px' }}>
+                <header className="dashboard-header animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                     <div className="header-text">
                         <h1 style={{ margin: 0, fontSize: '32px', fontWeight: '800', color: '#1e293b', letterSpacing: '-0.5px' }}>
-                            {searchParams.get('assetType') ? `${searchParams.get('assetType').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')} Mapping` : 'Mapped Assets'}
+                            {searchParams.get('assetType') ? `${searchParams.get('assetType').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}` : 'Courses'}
                         </h1>
                         <p style={{ margin: '4px 0 0 0', fontSize: '15px', color: '#64748b', fontWeight: '500' }}>
                             Manage and monitor all {searchParams.get('assetType') ? searchParams.get('assetType').replace(/_/g, ' ') : 'course'}-to-audience assignments.
                         </p>
                     </div>
 
-                    <form className="search-form-top animate-fade-in" onSubmit={handleSearch} style={{ position: 'relative', width: '100%', maxWidth: '280px', marginTop: '8px' }}>
-                        <Search size={18} style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', zIndex: 1 }} />
+                    <button
+                        onClick={() => navigate('/admin/mappings/new')}
+                        style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            background: '#2563eb',
+                            color: 'white',
+                            padding: '12px 24px',
+                            borderRadius: '10px',
+                            fontWeight: '700',
+                            fontSize: '15px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2), 0 2px 4px -1px rgba(37, 99, 235, 0.1)'
+                        }}
+                    >
+                        <Plus size={20} />
+                        New Course
+                    </button>
+                </header>
+
+                <div className="filter-section-container" style={{ marginBottom: '24px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: '#1e293b', fontWeight: '700', fontSize: '14px' }}>
+                        <Filter size={16} />
+                        Filter By
+                    </div>
+                    <section className="filter-bar-custom" style={{
+                        position: 'relative',
+                        zIndex: 100,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'white',
+                        padding: '12px 16px',
+                        borderRadius: '10px',
+                        border: '1px solid #e2e8f0',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.02)'
+                    }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            {!searchParams.get('assetType') && (
+                                <div className="combo-select combo-dropdown dropdown-container" ref={assetDropdownRef}>
+                                    <span className="combo-label">Asset</span>
+                                    <span className="combo-divider"></span>
+                                    <div className="combo-trigger" onClick={() => setIsAssetDropdownOpen(!isAssetDropdownOpen)}>
+                                        <span style={{ fontSize: '13px', fontWeight: '500', color: filters.assetType ? '#1e293b' : '#64748b' }}>
+                                            {filters.assetType ? filters.assetType.charAt(0).toUpperCase() + filters.assetType.slice(1) + 's' : 'All Assets'}
+                                        </span>
+                                        <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                                    </div>
+                                    {isAssetDropdownOpen && (
+                                        <div className="paged-dropdown-menu custom-combo-menu">
+                                            <div className="dropdown-options-list">
+                                                {[
+                                                    { label: 'All Assets', value: '' },
+                                                    { label: 'Courses', value: 'course' },
+                                                    { label: 'Workshops', value: 'workshop' },
+                                                    { label: 'Books', value: 'book' },
+                                                    { label: 'Bytes', value: 'byte' }
+                                                ].map(opt => (
+                                                    <label key={opt.value} className="menu-item-check">
+                                                        <input
+                                                            type="radio"
+                                                            name="assetTypeFilter"
+                                                            checked={filters.assetType === opt.value}
+                                                            onChange={() => {
+                                                                const val = opt.value;
+                                                                setFilters({ ...filters, assetType: val });
+                                                                if (val) setSearchParams({ assetType: val });
+                                                                else setSearchParams({});
+                                                                setIsAssetDropdownOpen(false);
+                                                            }}
+                                                        />
+                                                        <span>{opt.label}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            <div className="combo-select combo-dropdown dropdown-container" ref={userTypeDropdownRef}>
+                                <span className="combo-label">User Type</span>
+                                <span className="combo-divider"></span>
+                                <div className="combo-trigger" onClick={() => setIsUserTypeDropdownOpen(!isUserTypeDropdownOpen)}>
+                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.userType ? '#1e293b' : '#64748b' }}>
+                                        {filters.userType || 'Select'}
+                                    </span>
+                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                                </div>
+                                {isUserTypeDropdownOpen && (
+                                    <div className="paged-dropdown-menu custom-combo-menu">
+                                        <div className="dropdown-options-list">
+                                            {['Premium', 'Ultra', 'School'].map(t => (
+                                                <label key={t} className="menu-item-check">
+                                                    <input
+                                                        type="radio"
+                                                        name="userTypeFilter"
+                                                        checked={filters.userType === t}
+                                                        onChange={() => {
+                                                            const shouldShowSchoolDropdown = t.toLowerCase() === 'school';
+                                                            setFilters(prev => ({
+                                                                ...prev,
+                                                                userType: t,
+                                                                schoolIds: shouldShowSchoolDropdown ? prev.schoolIds : [],
+                                                                gradeIds: !shouldShowSchoolDropdown ? prev.gradeIds : []
+                                                            }));
+                                                            setIsUserTypeDropdownOpen(false);
+                                                            if (!shouldShowSchoolDropdown) setIsSchoolDropdownOpen(false);
+                                                            else setIsGradeDropdownOpen(false);
+                                                        }}
+                                                    />
+                                                    <span>{t}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            {canShowSchool && (
+                                <div className="combo-select combo-dropdown dropdown-container" ref={schoolDropdownRef}>
+                                    <span className="combo-label">School</span>
+                                    <span className="combo-divider"></span>
+                                    <div className="combo-trigger" onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}>
+                                        <span style={{ fontSize: '13px', fontWeight: '500', color: filters.schoolIds.length > 0 ? '#1e293b' : '#64748b' }}>
+                                            {filters.schoolIds.length === 0 ? 'Select' : (schools.find(s => Number(s.id) === Number(filters.schoolIds[0]))?.name || 'Selected')}
+                                        </span>
+                                        <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                                    </div>
+                                    {isSchoolDropdownOpen && (
+                                        <div className="paged-dropdown-menu custom-combo-menu">
+
+                                            <div className="dropdown-options-list">
+                                                {schools.map(s => (
+                                                    <label key={s.id} className="menu-item-check">
+                                                        <input
+                                                            type="radio"
+                                                            name="schoolFilter"
+                                                            checked={filters.schoolIds.map(Number).includes(Number(s.id)) && filters.schoolIds.length === 1}
+                                                            onChange={(e) => {
+                                                                setFilters({ ...filters, schoolIds: [Number(s.id)] });
+                                                                setIsSchoolDropdownOpen(false);
+                                                            }}
+                                                        />
+                                                        <span>{s.name}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {canShowGrades && (
+                                <div className="combo-select combo-dropdown dropdown-container" ref={gradeDropdownRef}>
+                                    <span className="combo-label">Grade</span>
+                                    <span className="combo-divider"></span>
+                                    <div className="combo-trigger" onClick={() => setIsGradeDropdownOpen(!isGradeDropdownOpen)}>
+                                        <span style={{ fontSize: '13px', fontWeight: '500', color: filters.gradeIds.length > 0 ? '#1e293b' : '#64748b' }}>
+                                            {filters.gradeIds.length === 0 ? 'Select' : (grades.find(g => g.id === filters.gradeIds[0])?.name || 'Selected')}
+                                        </span>
+                                        <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                                    </div>
+                                    {isGradeDropdownOpen && (
+                                        <div className="paged-dropdown-menu custom-combo-menu">
+
+                                            <div className="dropdown-options-list">
+                                                {grades.map(g => (
+                                                    <label key={g.id} className="menu-item-check">
+                                                        <input
+                                                            type="radio"
+                                                            name="gradeFilter"
+                                                            checked={filters.gradeIds.includes(g.id) && filters.gradeIds.length === 1}
+                                                            onChange={(e) => {
+                                                                setFilters({ ...filters, gradeIds: [g.id] });
+                                                                setIsGradeDropdownOpen(false);
+                                                            }}
+                                                        />
+                                                        <span>{g.name}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {canShowCategory && (
+                                <div className="combo-select combo-dropdown dropdown-container" ref={categoryDropdownRef}>
+                                    <span className="combo-label">Category</span>
+                                    <span className="combo-divider"></span>
+                                    <div className="combo-trigger" onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}>
+                                        <span style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b' }}>
+                                            {filters.category.includes('All') ? 'All' : (filters.category.length === 1 ? filters.category[0] : `${filters.category.length} Selected`)}
+                                        </span>
+                                        <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
+                                    </div>
+                                    {isCategoryDropdownOpen && (
+                                        <div className="paged-dropdown-menu custom-combo-menu">
+
+                                            <div className="dropdown-options-list">
+                                                {categories.map(c => (
+                                                    <label key={c} className={`menu-item-check ${c === 'All' ? 'all-option' : ''}`}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={filters.category.includes(c)}
+                                                            onChange={() => {
+                                                                let newSelection;
+                                                                if (c === 'All') {
+                                                                    newSelection = ['All'];
+                                                                } else {
+                                                                    // Remove 'All' if it was there
+                                                                    const filtered = filters.category.filter(x => x !== 'All');
+                                                                    if (filtered.includes(c)) {
+                                                                        newSelection = filtered.filter(x => x !== c);
+                                                                    } else {
+                                                                        newSelection = [...filtered, c];
+                                                                    }
+                                                                    // If empty, revert to All
+                                                                    if (newSelection.length === 0) newSelection = ['All'];
+                                                                }
+                                                                setFilters({ ...filters, category: newSelection });
+                                                            }}
+                                                        />
+                                                        <span>{c}</span>
+                                                    </label>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <button
+                                className="btn btn-primary"
+                                style={{
+                                    padding: '8px 20px', borderRadius: '6px', fontSize: '13.5px', fontWeight: '600', border: 'none',
+                                    opacity: isFormComplete ? 1 : 0.4, cursor: isFormComplete ? 'pointer' : 'not-allowed',
+                                    background: '#2563eb', color: 'white'
+                                }}
+                                disabled={!isFormComplete}
+                                onClick={handleSubmit}
+                            >Submit</button>
+                            <button
+                                className="btn btn-secondary"
+                                style={{
+                                    padding: '8px 20px', borderRadius: '6px', fontSize: '13.5px', background: 'transparent', border: '1px solid #e2e8f0', color: '#64748b', fontWeight: '500',
+                                    opacity: isAnyFilterSelected ? 1 : 0.4, cursor: isAnyFilterSelected ? 'pointer' : 'not-allowed'
+                                }}
+                                disabled={!isAnyFilterSelected}
+                                onClick={() => {
+                                    setFilters({
+                                        search: '',
+                                        assetType: searchParams.get('assetType') || '',
+                                        category: ['All'],
+                                        userType: '',
+                                        gradeIds: [],
+                                        schoolIds: []
+                                    });
+                                    setHasSubmitted(false);
+                                }}
+                            >Reset</button>
+                        </div>
+                    </section>
+                </div>
+
+                <div className="search-section-standalone" style={{ marginBottom: '24px' }}>
+                    <form onSubmit={handleSearch} style={{ position: 'relative', width: '100%' }}>
+                        <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', zIndex: 1 }} />
                         <input
                             type="text"
-                            placeholder={searchParams.get('assetType') ? `Search ${searchParams.get('assetType').charAt(0).toUpperCase() + searchParams.get('assetType').slice(1)}s` : "Search Courses"}
+                            placeholder="Search comes here"
                             value={filters.search}
                             onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                             onKeyUp={() => {
@@ -492,251 +763,20 @@ const DashboardPage = () => {
                             disabled={!hasSubmitted || data.length === 0}
                             style={{
                                 width: '100%',
-                                padding: '12px 14px 12px 42px',
+                                padding: '16px 16px 16px 48px',
                                 borderRadius: '10px',
-                                border: '1px solid #cbd5e1',
+                                border: '1px solid #e2e8f0',
                                 outline: 'none',
                                 background: '#ffffff',
                                 color: '#1e293b',
-                                cursor: (hasSubmitted && data.length > 0) ? 'text' : 'not-allowed',
-                                fontSize: '14px',
-                                boxShadow: '0 2px 4px rgba(0,0,0,0.02)',
+                                fontSize: '15px',
+                                boxShadow: '0 1px 2px rgba(0,0,0,0.02)',
                                 transition: 'all 0.2s'
                             }}
                         />
                     </form>
-                </header>
+                </div>
 
-                <section className="filter-bar-custom glass" style={{ position: 'relative', zIndex: 100, animationDelay: '0.1s', display: 'flex', alignItems: 'center', justifyContent: 'space-between', background: 'white', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        {!searchParams.get('assetType') && (
-                            <div className="combo-select combo-dropdown dropdown-container" ref={assetDropdownRef}>
-                                <span className="combo-label">Asset</span>
-                                <span className="combo-divider"></span>
-                                <div className="combo-trigger" onClick={() => setIsAssetDropdownOpen(!isAssetDropdownOpen)}>
-                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.assetType ? '#1e293b' : '#64748b' }}>
-                                        {filters.assetType ? filters.assetType.charAt(0).toUpperCase() + filters.assetType.slice(1) + 's' : 'All Assets'}
-                                    </span>
-                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
-                                </div>
-                                {isAssetDropdownOpen && (
-                                    <div className="paged-dropdown-menu custom-combo-menu">
-                                        <div className="dropdown-options-list">
-                                            {[
-                                                { label: 'All Assets', value: '' },
-                                                { label: 'Courses', value: 'course' },
-                                                { label: 'Workshops', value: 'workshop' },
-                                                { label: 'Books', value: 'book' },
-                                                { label: 'Bytes', value: 'byte' }
-                                            ].map(opt => (
-                                                <label key={opt.value} className="menu-item-check">
-                                                    <input
-                                                        type="radio"
-                                                        name="assetTypeFilter"
-                                                        checked={filters.assetType === opt.value}
-                                                        onChange={() => {
-                                                            const val = opt.value;
-                                                            setFilters({ ...filters, assetType: val });
-                                                            if (val) setSearchParams({ assetType: val });
-                                                            else setSearchParams({});
-                                                            setIsAssetDropdownOpen(false);
-                                                        }}
-                                                    />
-                                                    <span>{opt.label}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        <div className="combo-select combo-dropdown dropdown-container" ref={userTypeDropdownRef}>
-                            <span className="combo-label">User Type</span>
-                            <span className="combo-divider"></span>
-                            <div className="combo-trigger" onClick={() => setIsUserTypeDropdownOpen(!isUserTypeDropdownOpen)}>
-                                <span style={{ fontSize: '13px', fontWeight: '500', color: filters.userType ? '#1e293b' : '#64748b' }}>
-                                    {filters.userType || 'Select'}
-                                </span>
-                                <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
-                            </div>
-                            {isUserTypeDropdownOpen && (
-                                <div className="paged-dropdown-menu custom-combo-menu">
-                                    <div className="dropdown-options-list">
-                                        {['Premium', 'Ultra', 'School'].map(t => (
-                                            <label key={t} className="menu-item-check">
-                                                <input
-                                                    type="radio"
-                                                    name="userTypeFilter"
-                                                    checked={filters.userType === t}
-                                                    onChange={() => {
-                                                        const shouldShowSchoolDropdown = t.toLowerCase() === 'school';
-                                                        setFilters(prev => ({
-                                                            ...prev,
-                                                            userType: t,
-                                                            schoolIds: shouldShowSchoolDropdown ? prev.schoolIds : [],
-                                                            gradeIds: !shouldShowSchoolDropdown ? prev.gradeIds : []
-                                                        }));
-                                                        setIsUserTypeDropdownOpen(false);
-                                                        if (!shouldShowSchoolDropdown) setIsSchoolDropdownOpen(false);
-                                                        else setIsGradeDropdownOpen(false);
-                                                    }}
-                                                />
-                                                <span>{t}</span>
-                                            </label>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-
-                        {canShowSchool && (
-                            <div className="combo-select combo-dropdown dropdown-container" ref={schoolDropdownRef}>
-                                <span className="combo-label">School</span>
-                                <span className="combo-divider"></span>
-                                <div className="combo-trigger" onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}>
-                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.schoolIds.length > 0 ? '#1e293b' : '#64748b' }}>
-                                        {filters.schoolIds.length === 0 ? 'Select' : (schools.find(s => Number(s.id) === Number(filters.schoolIds[0]))?.name || 'Selected')}
-                                    </span>
-                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
-                                </div>
-                                {isSchoolDropdownOpen && (
-                                    <div className="paged-dropdown-menu custom-combo-menu">
-
-                                        <div className="dropdown-options-list">
-                                            {schools.map(s => (
-                                                <label key={s.id} className="menu-item-check">
-                                                    <input
-                                                        type="radio"
-                                                        name="schoolFilter"
-                                                        checked={filters.schoolIds.map(Number).includes(Number(s.id)) && filters.schoolIds.length === 1}
-                                                        onChange={(e) => {
-                                                            setFilters({ ...filters, schoolIds: [Number(s.id)] });
-                                                            setIsSchoolDropdownOpen(false);
-                                                        }}
-                                                    />
-                                                    <span>{s.name}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {canShowGrades && (
-                            <div className="combo-select combo-dropdown dropdown-container" ref={gradeDropdownRef}>
-                                <span className="combo-label">Grade</span>
-                                <span className="combo-divider"></span>
-                                <div className="combo-trigger" onClick={() => setIsGradeDropdownOpen(!isGradeDropdownOpen)}>
-                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.gradeIds.length > 0 ? '#1e293b' : '#64748b' }}>
-                                        {filters.gradeIds.length === 0 ? 'Select' : (grades.find(g => g.id === filters.gradeIds[0])?.name || 'Selected')}
-                                    </span>
-                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
-                                </div>
-                                {isGradeDropdownOpen && (
-                                    <div className="paged-dropdown-menu custom-combo-menu">
-
-                                        <div className="dropdown-options-list">
-                                            {grades.map(g => (
-                                                <label key={g.id} className="menu-item-check">
-                                                    <input
-                                                        type="radio"
-                                                        name="gradeFilter"
-                                                        checked={filters.gradeIds.includes(g.id) && filters.gradeIds.length === 1}
-                                                        onChange={(e) => {
-                                                            setFilters({ ...filters, gradeIds: [g.id] });
-                                                            setIsGradeDropdownOpen(false);
-                                                        }}
-                                                    />
-                                                    <span>{g.name}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {canShowCategory && (
-                            <div className="combo-select combo-dropdown dropdown-container" ref={categoryDropdownRef}>
-                                <span className="combo-label">Category</span>
-                                <span className="combo-divider"></span>
-                                <div className="combo-trigger" onClick={() => setIsCategoryDropdownOpen(!isCategoryDropdownOpen)}>
-                                    <span style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b' }}>
-                                        {filters.category.includes('All') ? 'All' : (filters.category.length === 1 ? filters.category[0] : `${filters.category.length} Selected`)}
-                                    </span>
-                                    <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
-                                </div>
-                                {isCategoryDropdownOpen && (
-                                    <div className="paged-dropdown-menu custom-combo-menu">
-
-                                        <div className="dropdown-options-list">
-                                            {categories.map(c => (
-                                                <label key={c} className={`menu-item-check ${c === 'All' ? 'all-option' : ''}`}>
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={filters.category.includes(c)}
-                                                        onChange={() => {
-                                                            let newSelection;
-                                                            if (c === 'All') {
-                                                                newSelection = ['All'];
-                                                            } else {
-                                                                // Remove 'All' if it was there
-                                                                const filtered = filters.category.filter(x => x !== 'All');
-                                                                if (filtered.includes(c)) {
-                                                                    newSelection = filtered.filter(x => x !== c);
-                                                                } else {
-                                                                    newSelection = [...filtered, c];
-                                                                }
-                                                                // If empty, revert to All
-                                                                if (newSelection.length === 0) newSelection = ['All'];
-                                                            }
-                                                            setFilters({ ...filters, category: newSelection });
-                                                        }}
-                                                    />
-                                                    <span>{c}</span>
-                                                </label>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-                    </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <button
-                            className="btn btn-primary"
-                            style={{
-                                padding: '8px 20px', borderRadius: '6px', fontSize: '13.5px', fontWeight: '600', border: 'none',
-                                opacity: isFormComplete ? 1 : 0.4, cursor: isFormComplete ? 'pointer' : 'not-allowed',
-                                background: '#2563eb', color: 'white'
-                            }}
-                            disabled={!isFormComplete}
-                            onClick={handleSubmit}
-                        >Submit</button>
-                        <button
-                            className="btn btn-secondary"
-                            style={{
-                                padding: '8px 20px', borderRadius: '6px', fontSize: '13.5px', background: 'transparent', border: '1px solid #e2e8f0', color: '#64748b', fontWeight: '500',
-                                opacity: isAnyFilterSelected ? 1 : 0.4, cursor: isAnyFilterSelected ? 'pointer' : 'not-allowed'
-                            }}
-                            disabled={!isAnyFilterSelected}
-                            onClick={() => {
-                                setFilters({
-                                    search: '',
-                                    assetType: searchParams.get('assetType') || '',
-                                    category: ['All'],
-                                    userType: '',
-                                    gradeIds: [],
-                                    schoolIds: []
-                                });
-                                setHasSubmitted(false);
-                            }}
-                        >Reset</button>
-                    </div>
-                </section>
 
 
                 {toast && (
