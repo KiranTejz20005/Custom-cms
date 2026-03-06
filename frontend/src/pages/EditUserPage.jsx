@@ -66,8 +66,8 @@ const EditUserPage = () => {
                         lastName: ln,
                         mobile: user.mobile || '',
                         email: user.email || '',
-                        subscriptionType: user.subscription_type || user.type || '',
-                        startDate: user.start_date || '',
+                        subscriptionType: user.subscription_type || '',
+                        startDate: user.start_date ? user.start_date.split('T')[0] : '',
                         gradeId: String(user.grade || user.grade_id || ''),
                         parentName: user.parent_name || '',
                         address: user.address || '',
@@ -131,11 +131,11 @@ const EditUserPage = () => {
                 grade: Number(gradeId),
                 school: userKind === 'school' ? (Number(schoolId) || 0) : 0,
                 subscription_type: subscriptionType.toLowerCase(),
+                start_date: startDate || null,
             };
             if (mobile.trim()) body.mobile = mobile.trim();
             if (parentName.trim()) body.parent_name = parentName.trim();
             if (address.trim()) body.address = address.trim();
-            if (startDate) body.start_date = startDate;
 
             await updateStudent(body);
             showToast('User updated successfully!');

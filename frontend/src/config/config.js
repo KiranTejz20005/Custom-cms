@@ -31,7 +31,7 @@ const endpoints = {
         getAllBooks: `${XANO_COURSES_BASE_URL}/get_all_books`,
         getAllByteCategories: `${XANO_COURSES_BASE_URL}/get_all_byte_categories`,
         getAllCategories: `${XANO_COURSES_BASE_URL}/get_all_categories`,
-        upsertEntitlement: `${DEFAULT_XANO_BASE_URL}/upsert_entitlement`,
+        upsertEntitlement: `${XANO_COURSES_BASE_URL}/upsert_entitlement`,
         getMappings: `${XANO_COURSES_BASE_URL}/get_entitlements`,
         getMapping: (id) => `${XANO_COURSES_BASE_URL}/get_entitlements/${id}`,
         updateMapping: () => `${DEFAULT_XANO_BASE_URL}/upsert_entitlement`,

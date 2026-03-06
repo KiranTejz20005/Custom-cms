@@ -138,7 +138,7 @@ const UsersPage = () => {
 
   const handlePasswordChange = async () => {
     if (!newPassword || newPassword.length < 6) {
-      alert("Password must be at least 6 characters.");
+      showToast("Password must be at least 6 characters.", "error");
       return;
     }
     setSavingPassword(true);

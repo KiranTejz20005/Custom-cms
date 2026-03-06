@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Loader2, Plus, Trash2, Upload, Search, Check } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
-import { getGrades, getSchools, getCourses, getWorkshops, createStudent, createMapping } from '../services/api';
+import { getGrades, getSchools, getCourses, getWorkshops, createStudent } from '../services/api';
 
 const STEPS = ['Student Details', 'Map & Publish'];
 
@@ -33,6 +33,11 @@ const CreateUserPage = () => {
     const [profilePicPreview, setProfilePicPreview] = useState(null);
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
+    const [toast, setToast] = useState(null);
+    const showToast = (message, type = 'success') => {
+        setToast({ message, type });
+        setTimeout(() => setToast(null), 4000);
+    };
 
     // Created student from step 1
     const [createdStudent, setCreatedStudent] = useState(null);
@@ -101,15 +106,15 @@ const CreateUserPage = () => {
             const body = {
                 name: fullName,
                 email: email.trim(),
-                password: 'LifeMonk@123',
+                password: 'Test@1234',
                 grade: Number(gradeId),
                 school: Number(schoolId) || 0,
                 subscription_type: subscriptionType.toLowerCase(),
+                start_date: startDate || null,
             };
             if (mobile.trim()) body.mobile = mobile.trim();
             if (parentName.trim()) body.parent_name = parentName.trim();
             if (address.trim()) body.address = address.trim();
-            if (startDate) body.start_date = startDate;
 
             const res = await createStudent(body);
             const studentId = res?.id || res?.data?.id || res?.user_id;
@@ -124,7 +129,7 @@ const CreateUserPage = () => {
             setStep(2);
         } catch (err) {
             console.error('Failed to create student:', err);
-            alert(err?.message || 'Error creating student. Please try again.');
+            showToast(err?.message || 'Error creating student. Please try again.', 'error');
         } finally {
             setSaving(false);
         }
@@ -162,37 +167,57 @@ const CreateUserPage = () => {
         try {
             const promises = [];
             for (const course of selectedCourses) {
-                promises.push(createMapping({
-                    type: 'student',
-                    student_id: createdStudent.id,
-                    content_id: course.id,
-                    content_type: 'course',
-                    content_title: course.title || course.name,
-                    grade_ids: [Number(gradeId)],
-                    is_active: true,
-                    subscription_type: subscriptionType.toLowerCase(),
-                    school: Number(schoolId) || 0,
-                }));
+                promises.push(
+                    fetch(
+                        `${import.meta.env.VITE_XANO_COURSES_BASE_URL}/upsert_entitlement`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: subscriptionType === 'school' ? 'school' : 'subscription',
+                                content_id: course.id || course.content_id,
+                                content_type: 'course',
+                                content_title: course.title || course.content_title,
+                                subscription_type: subscriptionType,
+                                grade_ids: [Number(gradeId)],
+                                school: Number(schoolId) || 0,
+                                is_active: true,
+                                category: course.category || '',
+                            }),
+                        }
+                    )
+                );
             }
             for (const ws of selectedWorkshops) {
-                promises.push(createMapping({
-                    type: 'student',
-                    student_id: createdStudent.id,
-                    content_id: ws.id,
-                    content_type: 'workshop',
-                    content_title: ws.title || ws.name,
-                    grade_ids: [Number(gradeId)],
-                    is_active: true,
-                    subscription_type: subscriptionType.toLowerCase(),
-                    school: Number(schoolId) || 0,
-                }));
+                promises.push(
+                    fetch(
+                        `${import.meta.env.VITE_XANO_COURSES_BASE_URL}/upsert_entitlement`,
+                        {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                type: subscriptionType === 'school' ? 'school' : 'subscription',
+                                content_id: ws.id || ws.content_id,
+                                content_type: 'workshop',
+                                content_title: ws.title || ws.content_title,
+                                subscription_type: subscriptionType,
+                                grade_ids: [Number(gradeId)],
+                                school: Number(schoolId) || 0,
+                                is_active: true,
+                                category: ws.category || '',
+                            }),
+                        }
+                    )
+                );
             }
             await Promise.all(promises);
-            alert('User created and mapped successfully!');
-            navigate('/admin/config/users');
+            showToast('User created and mapped successfully!', 'success');
+            setTimeout(() => {
+                navigate('/admin/config/users');
+            }, 3000);
         } catch (err) {
             console.error('Failed to apply mappings:', err);
-            alert('Error applying mappings. Please try again.');
+            showToast('Error applying mappings. Please try again.', 'error');
         } finally {
             setApplyingMappings(false);
         }
@@ -431,7 +456,7 @@ const CreateUserPage = () => {
                                                 const file = e.target.files[0];
                                                 if (!file) return;
                                                 if (file.size > 1024 * 1024) {
-                                                    alert('Image must be less than 1MB');
+                                                    showToast('Image must be less than 1MB', 'error');
                                                     return;
                                                 }
                                                 const reader = new FileReader();
@@ -844,6 +869,21 @@ const CreateUserPage = () => {
           font-size: 13px; color: #64748b; font-weight: 500;
         }
       `}} />
+        {toast && (
+            <div style={{
+                position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)',
+                zIndex: 9999, background: toast.type === 'success' ? '#f0fdf4' : '#fef2f2',
+                border: `1px solid ${toast.type === 'success' ? '#86efac' : '#fca5a5'}`,
+                color: toast.type === 'success' ? '#166534' : '#991b1b',
+                padding: '12px 24px', borderRadius: '8px', display: 'flex',
+                alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: '500',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)'
+            }}>
+                <span>{toast.type === 'success' ? '✓' : '✕'}</span>
+                <span>{toast.message}</span>
+                <button onClick={() => setToast(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', marginLeft: '8px', color: 'inherit' }}>✕</button>
+            </div>
+        )}
         </Layout>
     );
 };
