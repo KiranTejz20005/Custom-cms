@@ -11,7 +11,8 @@ import {
 import {
     getCategories, getCourses, createCourse, addChapter, createQuiz,
     updateCourseVisibility, publishCourse, getSchools, getGrades, getMappings,
-    updateChapter, updateQuiz, deleteChapter, deleteQuiz, updateChapterOrder
+    updateChapter, updateQuiz, deleteChapter, deleteQuiz, updateChapterOrder,
+    createMapping
 } from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -70,6 +71,7 @@ const NewCoursePage = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [openMenuId, setOpenMenuId] = useState(null);
     const [draggedItemIndex, setDraggedItemIndex] = useState(null);
+    const [dragOverIndex, setDragOverIndex] = useState(null);
 
     // Step 3: Mapping State
     const [mappingType, setMappingType] = useState('both');
@@ -189,14 +191,14 @@ const NewCoursePage = () => {
             const newItem = {
                 id: newItemId || Date.now(),
                 type,
-                title: `Untitled ${type.charAt(0).toUpperCase() + type.slice(1)}`,
+                title: type === 'quiz' ? 'Untitled Quiz' : `Untitled ${type.charAt(0).toUpperCase() + type.slice(1)}`,
                 content: '',
                 questions: type === 'quiz' ? [{
                     id: Date.now(), question: '', a: '', b: '', c: '', d: '',
                     correct_answer: 'a', marks: 1
                 }] : []
             };
-            setItems([...items, newItem]);
+            setItems(prev => [...prev, newItem]);
             setActiveItem(newItem);
             toast.success(`${type} added successfully.`);
         } catch (err) {
@@ -225,17 +227,19 @@ const NewCoursePage = () => {
         updateActiveItem({ questions: newQs });
     };
 
-    const deleteItem = (id) => {
-        const newItems = items.filter(item => item.id !== id);
+    const deleteItem = (id, type) => {
+        const newItems = items.filter(item => !(item.id === id && item.type === (type || item.type)));
         setItems(newItems);
-        if (activeItem?.id === id) setActiveItem(null);
+        if (activeItem?.id === id && activeItem?.type === type) setActiveItem(null);
     };
 
     const updateActiveItem = (updates) => {
         if (!activeItem) return;
         const updated = { ...activeItem, ...updates };
         setActiveItem(updated);
-        setItems(items.map(item => item.id === activeItem.id ? updated : item));
+        setItems(prev => prev.map(item =>
+            item.id === activeItem.id && item.type === activeItem.type ? updated : item
+        ));
     };
 
     const handleSaveQuiz = async () => {
@@ -281,9 +285,9 @@ const NewCoursePage = () => {
             if (type === 'quiz') await deleteQuiz(id);
             else await deleteChapter(id);
 
-            const newItems = items.filter(item => item.id !== id);
+            const newItems = items.filter(item => !(item.id === id && item.type === type));
             setItems(newItems);
-            if (activeItem?.id === id) setActiveItem(null);
+            if (activeItem?.id === id && activeItem?.type === type) setActiveItem(null);
             toast.success(`${type} deleted.`);
         } catch (err) {
             console.error("Delete failed:", err);
@@ -298,22 +302,39 @@ const NewCoursePage = () => {
         e.dataTransfer.setData('text/plain', '');
     };
 
-    const handleDragOver = (e) => {
-        e.preventDefault(); // Required to allow drop
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        setDragOverIndex(index);
+    };
+
+    const handleDragLeave = (e) => {
+        e.preventDefault();
+        setDragOverIndex(null);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedItemIndex(null);
+        setDragOverIndex(null);
     };
 
     const handleDrop = async (e, droppedOnIndex) => {
         e.preventDefault();
+        setDragOverIndex(null);
         if (draggedItemIndex === null || draggedItemIndex === droppedOnIndex) return;
 
         const filteredItems = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
 
-        // Find positions in main items array
         const draggedItem = filteredItems[draggedItemIndex];
         const targetItem = filteredItems[droppedOnIndex];
 
-        const draggedOriginalIndex = items.findIndex(item => item.id === draggedItem.id);
-        const targetOriginalIndex = items.findIndex(item => item.id === targetItem.id);
+        const sameItem = draggedItem.id === targetItem.id && draggedItem.type === targetItem.type;
+        if (sameItem) return;
+
+        const draggedOriginalIndex = items.findIndex(item => item.id === draggedItem.id && item.type === draggedItem.type);
+        const targetOriginalIndex = items.findIndex(item => item.id === targetItem.id && item.type === targetItem.type);
+
+        if (draggedOriginalIndex === -1 || targetOriginalIndex === -1) return;
 
         const newItems = [...items];
         const [removed] = newItems.splice(draggedOriginalIndex, 1);
@@ -322,7 +343,6 @@ const NewCoursePage = () => {
         setItems(newItems);
         setDraggedItemIndex(null);
 
-        // Notify backend of new sequence
         try {
             await updateChapterOrder(newItems.map((item, idx) => ({
                 id: item.id,
@@ -339,7 +359,7 @@ const NewCoursePage = () => {
 
         const filteredItems = items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase()));
         const itemToMove = filteredItems[filteredIndex];
-        const originalIndex = items.findIndex(item => item.id === itemToMove.id);
+        const originalIndex = items.findIndex(item => item.id === itemToMove.id && item.type === itemToMove.type);
 
         const targetIndex = originalIndex + direction;
         if (targetIndex < 0 || targetIndex >= items.length) return;
@@ -405,7 +425,7 @@ const NewCoursePage = () => {
         const visible = unmappedSchools.filter(s =>
             s.name.toLowerCase().includes(unmappedSearch.toLowerCase()) ||
             String(s.id).includes(unmappedSearch) ||
-            (s.area || '').toLowerCase().includes(unmappedSearch.toLowerCase()) ||
+            (s.location || s.area || '').toLowerCase().includes(unmappedSearch.toLowerCase()) ||
             (s.city || '').toLowerCase().includes(unmappedSearch.toLowerCase())
         );
         if (checked) {
@@ -419,7 +439,7 @@ const NewCoursePage = () => {
         const visible = mappedSchools.filter(s =>
             s.name.toLowerCase().includes(mappedSearch.toLowerCase()) ||
             String(s.id).includes(mappedSearch) ||
-            (s.area || '').toLowerCase().includes(mappedSearch.toLowerCase()) ||
+            (s.location || s.area || '').toLowerCase().includes(mappedSearch.toLowerCase()) ||
             (s.city || '').toLowerCase().includes(mappedSearch.toLowerCase())
         );
         if (checked) {
@@ -582,7 +602,7 @@ const NewCoursePage = () => {
             return {
                 ...course,
                 displaySchoolId: matchedMapping?.school_id || '—',
-                displayArea: school?.area || '—',
+                displayArea: school?.location || school?.area || '—',
                 displayCity: school?.city || '—'
             };
         });
@@ -600,8 +620,15 @@ const NewCoursePage = () => {
         <Layout title="New Course">
             <div className="new-course-page animate-fade-in" style={{ paddingBottom: '40px' }}>
 
-                {/* Top Action Bar */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#f8fafc', padding: '16px 32px', borderBottom: '1px solid #e2e8f0', position: 'sticky', top: 0, zIndex: 100 }}>
+                {/* Top Action Bar - scrolls with page (not sticky) */}
+                <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    background: '#ffffff',
+                    padding: '16px 32px',
+                    borderBottom: '1px solid #e2e8f0'
+                }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <ChevronLeft size={20} color="#64748b" style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/courses')} />
                         <h1 style={{ fontSize: '20px', fontWeight: '800', color: '#1e293b', margin: 0 }}>Courses / New Course</h1>
@@ -1072,28 +1099,30 @@ const NewCoursePage = () => {
                                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                     {items.filter(item => item.title.toLowerCase().includes(searchTerm.toLowerCase())).map((item, index) => (
                                         <div
-                                            key={item.id}
+                                            key={`${item.type}-${item.id}`}
                                             draggable
                                             onDragStart={(e) => handleDragStart(e, index)}
-                                            onDragOver={handleDragOver}
+                                            onDragOver={(e) => handleDragOver(e, index)}
+                                            onDragLeave={handleDragLeave}
+                                            onDragEnd={handleDragEnd}
                                             onDrop={(e) => handleDrop(e, index)}
                                             onClick={() => setActiveItem(item)}
                                             style={{
                                                 padding: '14px 16px',
                                                 borderRadius: '10px',
                                                 cursor: 'grab',
-                                                background: activeItem?.id === item.id ? '#f0f7ff' : '#ffffff',
-                                                border: activeItem?.id === item.id ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                                                background: (activeItem?.id === item.id && activeItem?.type === item.type) ? '#f0f7ff' : (dragOverIndex === index ? '#e0f2fe' : '#ffffff'),
+                                                border: (activeItem?.id === item.id && activeItem?.type === item.type) ? '1px solid #3b82f6' : (dragOverIndex === index ? '2px dashed #0ea5e9' : '1px solid #e2e8f0'),
                                                 display: 'flex',
                                                 alignItems: 'center',
                                                 gap: '12px',
                                                 transition: 'all 0.2s',
                                                 marginBottom: '4px',
-                                                boxShadow: activeItem?.id === item.id ? '0 2px 8px rgba(59, 130, 246, 0.1)' : 'none',
+                                                boxShadow: (activeItem?.id === item.id && activeItem?.type === item.type) ? '0 2px 8px rgba(59, 130, 246, 0.1)' : 'none',
                                                 opacity: draggedItemIndex === index ? 0.5 : 1
                                             }}
                                         >
-                                            <div style={{ display: 'flex', flexDirection: 'column', color: '#94a3b8', position: 'relative' }}>
+                                            <div style={{ display: 'flex', flexDirection: 'column', color: '#94a3b8', position: 'relative' }} title="Drag to reorder">
                                                 <div style={{ opacity: 0.8, cursor: 'grab' }}><GripVertical size={20} /></div>
                                                 <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column' }}>
                                                     <button onClick={(e) => handleMoveItem(e, index, -1)} disabled={index === 0} style={{ flex: 1, background: 'transparent', border: 'none', cursor: index === 0 ? 'default' : 'pointer', color: 'transparent', width: '100%' }} title="Move Up"></button>
@@ -1113,13 +1142,13 @@ const NewCoursePage = () => {
 
                                             <div style={{ position: 'relative' }}>
                                                 <button
-                                                    onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === item.id ? null : item.id); }}
+                                                    onClick={(e) => { e.stopPropagation(); const composite = `${item.type}-${item.id}`; setOpenMenuId(openMenuId === composite ? null : composite); }}
                                                     style={{ color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}
                                                 >
                                                     <MoreVertical size={18} />
                                                 </button>
 
-                                                {openMenuId === item.id && (
+                                                {openMenuId === `${item.type}-${item.id}` && (
                                                     <div style={{
                                                         position: 'absolute',
                                                         right: '0',
@@ -1461,25 +1490,25 @@ const NewCoursePage = () => {
                                 </div>
                                 <input
                                     type="text"
-                                    placeholder="Search by school name, school id, area or city"
+                                    placeholder="Search by school name, school id, location or city"
                                     value={unmappedSearch}
                                     onChange={(e) => setUnmappedSearch(e.target.value)}
                                     style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
                                 />
-                                <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', height: '500px', display: 'flex', flexDirection: 'column' }}>
+                                <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', height: '500px', display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                         <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 1 }}>
                                             <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
-                                                <th style={{ padding: '12px', width: '40px' }}><input type="checkbox" /></th>
+                                                <th style={{ padding: '12px', width: '40px' }}></th>
                                                 <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Name</th>
                                                 <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>School ID</th>
-                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Area</th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Location</th>
                                                 <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>City</th>
                                             </tr>
                                         </thead>
-                                        <tbody style={{ background: 'white' }}>
+                                        <tbody style={{ background: '#f8fafc' }}>
                                             <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                <td style={{ padding: '12px' }}><input type="checkbox" /></td>
+                                                <td style={{ padding: '12px' }}></td>
                                                 <td colSpan="4" style={{ padding: '12px', fontWeight: '600' }}>All Schools</td>
                                             </tr>
                                             {unmappedSchools.filter(s => s.name.toLowerCase().includes(unmappedSearch.toLowerCase())).map(s => (
@@ -1496,7 +1525,7 @@ const NewCoursePage = () => {
                                                     </td>
                                                     <td style={{ padding: '12px', fontWeight: '600' }}>{s.name}</td>
                                                     <td style={{ padding: '12px', color: '#1e293b' }}>#{s.id}</td>
-                                                    <td style={{ padding: '12px', color: '#1e293b' }}>{s.area || '—'}</td>
+                                                    <td style={{ padding: '12px', color: '#1e293b' }}>{s.location || s.area || '—'}</td>
                                                     <td style={{ padding: '12px', color: '#1e293b' }}>{s.city || '—'}</td>
                                                 </tr>
                                             ))}
@@ -1563,23 +1592,23 @@ const NewCoursePage = () => {
                                 </div>
                                 <input
                                     type="text"
-                                    placeholder="Search by school name, school id, area or city"
+                                    placeholder="Search by school name, school id, location or city"
                                     value={mappedSearch}
                                     onChange={(e) => setMappedSearch(e.target.value)}
                                     style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }}
                                 />
-                                <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', height: '500px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
+                                <div style={{ border: '1px solid #cbd5e1', borderRadius: '8px', overflow: 'hidden', height: '500px', display: 'flex', flexDirection: 'column', position: 'relative', background: '#f8fafc' }}>
                                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
                                         <thead style={{ background: '#f8fafc', position: 'sticky', top: 0, zIndex: 1 }}>
                                             <tr style={{ borderBottom: '1px solid #cbd5e1' }}>
-                                                <th style={{ padding: '12px', width: '40px' }}><input type="checkbox" /></th>
+                                                <th style={{ padding: '12px', width: '40px' }}></th>
                                                 <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Name</th>
                                                 <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>School ID</th>
-                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Area</th>
+                                                <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Location</th>
                                                 <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>City</th>
                                             </tr>
                                         </thead>
-                                        <tbody style={{ background: 'white' }}>
+                                        <tbody style={{ background: '#f8fafc' }}>
                                             {mappedSchools.length === 0 ? (
                                                 <tr>
                                                     <td colSpan="5" style={{ textAlign: 'center', padding: '100px 0', color: '#94a3b8', fontSize: '14px' }}>No Mapped Items</td>
@@ -1599,7 +1628,7 @@ const NewCoursePage = () => {
                                                         </td>
                                                         <td style={{ padding: '12px', fontWeight: '600' }}>{s.name}</td>
                                                         <td style={{ padding: '12px', color: '#1e293b' }}>#{s.id}</td>
-                                                        <td style={{ padding: '12px', color: '#1e293b' }}>{s.area || '—'}</td>
+                                                        <td style={{ padding: '12px', color: '#1e293b' }}>{s.location || s.area || '—'}</td>
                                                         <td style={{ padding: '12px', color: '#1e293b' }}>{s.city || '—'}</td>
                                                     </tr>
                                                 ))

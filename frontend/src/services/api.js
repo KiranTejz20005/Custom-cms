@@ -4,8 +4,22 @@ import config from '../config/config';
 
 const { members, courses } = config.endpoints;
 
+// Sort grades by level_number, then by numeric part of name, then by id (Grade 1, 2, … 12)
+function sortGradesAscending(arr) {
+    if (!Array.isArray(arr) || arr.length === 0) return arr;
+    return [...arr].sort((a, b) => {
+        const numA = a.level_number != null ? Number(a.level_number) : parseInt(String(a.name || '').replace(/\D/g, ''), 10) || Number(a.id) || 0;
+        const numB = b.level_number != null ? Number(b.level_number) : parseInt(String(b.name || '').replace(/\D/g, ''), 10) || Number(b.id) || 0;
+        return numA - numB;
+    });
+}
+
 // User & Filter Endpoints (Members Base)
-export const getGrades = () => client.get(members.getAllGrades);
+export const getGrades = async () => {
+    const res = await client.get(members.getAllGrades);
+    const list = Array.isArray(res) ? res : (res?.data ?? res?.items ?? res?.records ?? []);
+    return sortGradesAscending(list);
+};
 export const getSchools = () => client.get(members.getAllSchools);
 export const getUsers = () => client.get(members.getAllUsers);
 export const updateUser = (id, data) => client.post(members.updateUser(id), data);
