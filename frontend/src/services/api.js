@@ -24,6 +24,8 @@ export const getSchools = () => client.get(members.getAllSchools);
 export const getUsers = () => client.get(members.getAllUsers);
 export const updateUser = (id, data) => client.post(members.updateUser(id), data);
 export const deleteUser = async (id) => client.request('DELETE', members.deleteStudent, { student_id: id });
+export const getDeletedStudents = () => client.get(config.endpoints.members.getDeletedStudents);
+export const restoreStudent = (id) => client.post(config.endpoints.members.restoreStudent, { student_id_: Number(id) });
 export const updateStudent = (data) => client.post(members.updateStudent, data);
 export const deleteStudent = (id) => client.post(members.deleteStudent, { student_id: id });
 export const getUserCount = (params) => client.get(members.countUsers, params);

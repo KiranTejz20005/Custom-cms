@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Loader2, Plus, Trash2, Upload, Search, Check, Layers, ChevronDown } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
-import { getGrades, getSchools, getCourses, getWorkshops, getMappings, createStudent, getUsers } from '../services/api';
+import { getGrades, getSchools, getCourses, getWorkshops, getMappings, createStudent, getUsers, getDeletedStudents, restoreStudent } from '../services/api';
 import AssetPicker from '../components/mapping/AssetPicker';
 
 const STEPS = ['Student Details', 'Map & Publish'];
@@ -34,6 +34,9 @@ const CreateUserPage = () => {
     const [errors, setErrors] = useState({});
     const [saving, setSaving] = useState(false);
     const [toast, setToast] = useState(null);
+    const [deletedUserForEmail, setDeletedUserForEmail] = useState(null);
+    const [deletedUserForMobile, setDeletedUserForMobile] = useState(null);
+    const [restoring, setRestoring] = useState(false);
     const showToast = (message, type = 'success') => {
         setToast({ message, type });
         setTimeout(() => setToast(null), 4000);
@@ -169,28 +172,88 @@ const CreateUserPage = () => {
         return Object.keys(errs).length === 0;
     };
 
+    const handleRestoreFromBin = async (deletedUser) => {
+        setRestoring(true);
+        try {
+            await restoreStudent(deletedUser.id ?? deletedUser.student_id);
+            showToast('User restored successfully! You can edit them from the Users list.', 'success');
+            setDeletedUserForEmail(null);
+            setDeletedUserForMobile(null);
+            setErrors({});
+            setTimeout(() => navigate('/admin/config/users'), 2500);
+        } catch (err) {
+            console.error('Restore failed:', err);
+            showToast('Failed to restore user. Please try again.', 'error');
+        } finally {
+            setRestoring(false);
+        }
+    };
+
     /* ── Step 1 Submit ── */
     const handleNext = async () => {
         if (!validate()) return;
 
         setSaving(true);
         try {
-            // Check for duplicate email/mobile
-            const existingUsers = await getUsers();
-            const allUsers = Array.isArray(existingUsers?.data) ? existingUsers.data : (Array.isArray(existingUsers) ? existingUsers : []);
-            const duplicate = allUsers.find(u =>
-                u.email?.toLowerCase() === email.toLowerCase() ||
-                (mobile && (u.mobile_ === mobile || u.mobile === mobile))
+            // Fetch both active and deleted users for comprehensive duplicate checking
+            const [existingUsersRes, deletedUsersRes] = await Promise.all([
+                getUsers(),
+                getDeletedStudents()
+            ]);
+
+            const activeData = Array.isArray(existingUsersRes?.data)
+                ? existingUsersRes.data
+                : (Array.isArray(existingUsersRes) ? existingUsersRes : []);
+
+            const deletedData = Array.isArray(deletedUsersRes?.data)
+                ? deletedUsersRes.data
+                : (Array.isArray(deletedUsersRes) ? deletedUsersRes : []);
+
+            // Combine into one array for easier processing, marking them accordingly
+            const activeUsers = activeData.map(u => ({ ...u, is_deleted_actual: false }));
+            const deletedUsers = deletedData.map(u => ({ ...u, is_deleted_actual: true }));
+            const allUsers = [...activeUsers, ...deletedUsers];
+
+            // Check if email/mobile matches a DELETED (bin) user first
+            const deletedByEmail = deletedUsers.find(u =>
+                u.email?.toLowerCase() === email.toLowerCase()
             );
-            if (duplicate) {
-                if (duplicate.email?.toLowerCase() === email.toLowerCase()) {
-                    setErrors(prev => ({ ...prev, email: 'A user with this email already exists.' }));
-                } else {
-                    setErrors(prev => ({ ...prev, mobile: 'A user with this mobile number already exists.' }));
-                }
+            const deletedByMobile = deletedUsers.find(u =>
+                mobile && (u.mobile_ === mobile || u.mobile === mobile)
+            );
+
+            if (deletedByEmail) {
+                setDeletedUserForEmail(deletedByEmail);
+                setErrors(prev => ({ ...prev, email: 'This user is in the Recycle Bin.' }));
                 setSaving(false);
                 return;
             }
+            if (deletedByMobile) {
+                setDeletedUserForMobile(deletedByMobile);
+                setErrors(prev => ({ ...prev, mobile: 'This user is in the Recycle Bin.' }));
+                setSaving(false);
+                return;
+            }
+
+            // Check active duplicates
+            const activeDupEmail = activeUsers.find(u =>
+                u.email?.toLowerCase() === email.toLowerCase()
+            );
+            const activeDupMobile = activeUsers.find(u =>
+                mobile && (u.mobile_ === mobile || u.mobile === mobile)
+            );
+
+            if (activeDupEmail) {
+                setErrors(prev => ({ ...prev, email: 'A user with this email already exists.' }));
+                setSaving(false);
+                return;
+            }
+            if (activeDupMobile) {
+                setErrors(prev => ({ ...prev, mobile: 'A user with this mobile number already exists.' }));
+                setSaving(false);
+                return;
+            }
+
             const body = {
                 first_name_: firstName.trim(),
                 last_name_: (lastName || '').trim(),
@@ -432,18 +495,66 @@ const CreateUserPage = () => {
                                             onChange={e => {
                                                 const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                                                 setMobile(val);
+                                                setDeletedUserForMobile(null);
                                                 setErrors(prev => ({ ...prev, mobile: '' }));
                                             }}
                                             placeholder="10-digit mobile number"
                                             maxLength={10}
                                         />
-                                        {errors.mobile && <span className="cu-err">{errors.mobile}</span>}
+                                        {errors.mobile && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                                <span className="cu-err">{errors.mobile}</span>
+                                                {deletedUserForMobile && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRestoreFromBin(deletedUserForMobile)}
+                                                        disabled={restoring}
+                                                        style={{
+                                                            background: '#2563eb', color: 'white', border: 'none',
+                                                            padding: '3px 10px', borderRadius: '4px', fontSize: '11px',
+                                                            fontWeight: '700', cursor: restoring ? 'not-allowed' : 'pointer',
+                                                            opacity: restoring ? 0.6 : 1, whiteSpace: 'nowrap'
+                                                        }}
+                                                    >
+                                                        {restoring ? 'Restoring...' : '↺ Restore User'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div style={{ marginBottom: 20 }}>
                                         <label className="cu-label">Email*</label>
-                                        <input className={`cu-input ${errors.email ? 'cu-input-err' : ''}`} type="email" value={email} onChange={e => setEmail(e.target.value)} />
-                                        {errors.email && <span className="cu-err">{errors.email}</span>}
+                                        <input
+                                            className={`cu-input ${errors.email ? 'cu-input-err' : ''}`}
+                                            type="email"
+                                            value={email}
+                                            onChange={e => {
+                                                setEmail(e.target.value);
+                                                setDeletedUserForEmail(null);
+                                                setErrors(prev => ({ ...prev, email: '' }));
+                                            }}
+                                        />
+                                        {errors.email && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                                                <span className="cu-err">{errors.email}</span>
+                                                {deletedUserForEmail && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleRestoreFromBin(deletedUserForEmail)}
+                                                        disabled={restoring}
+                                                        style={{
+                                                            background: '#2563eb', color: 'white', border: 'none',
+                                                            padding: '3px 10px', borderRadius: '4px', fontSize: '11px',
+                                                            fontWeight: '700', cursor: restoring ? 'not-allowed' : 'pointer',
+                                                            opacity: restoring ? 0.6 : 1, whiteSpace: 'nowrap'
+                                                        }}
+                                                    >
+                                                        {restoring ? 'Restoring...' : '↺ Restore User'}
+                                                    </button>
+                                                )}
+                                            </div>
+                                        )}
                                     </div>
 
                                     <div style={{ marginBottom: 20 }}>

@@ -25,6 +25,8 @@ const endpoints = {
         deleteUser: (id) => `${XANO_MEMBERS_BASE_URL}/user/${id}`,
         updateStudent: `${XANO_MEMBERS_BASE_URL}/update_student`,
         deleteStudent: `${XANO_MEMBERS_BASE_URL}/delete_student`,
+        getDeletedStudents: `${XANO_MEMBERS_BASE_URL}/get_deleted_students`,
+        restoreStudent: `${XANO_MEMBERS_BASE_URL}/restore_student`,
         createStudent: `${XANO_AUTH_BASE_URL}/create_student`,
     },
     courses: {

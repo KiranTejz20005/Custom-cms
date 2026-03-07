@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/common/Layout';
 import AdminDeleteModal from '../components/common/AdminDeleteModal';
-import { getBin, restoreCourse, purgeCourse, createMapping } from '../services/api';
+import { getBin, restoreCourse, purgeCourse, createMapping, getDeletedStudents, restoreStudent } from '../services/api';
 import { Trash2, RefreshCw, ChevronLeft, ChevronRight, Search, RotateCcw, ShieldAlert, Layers, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -20,13 +20,20 @@ const BinPage = () => {
     const loadBin = async () => {
         try {
             setLoading(true);
-            const res = await getBin();
-            setItems(Array.isArray(res) ? res : (res.data || res.items || []));
+            const [coursesRes, studentsRes] = await Promise.all([
+                getBin(),
+                getDeletedStudents()
+            ]);
+            const courses = Array.isArray(coursesRes) ? coursesRes : (coursesRes?.data || coursesRes?.items || []);
+            const students = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.data || studentsRes?.items || []);
+
+            // Tag each item with its type
+            const taggedCourses = courses.map(c => ({ ...c, _binType: 'course' }));
+            const taggedStudents = students.map(s => ({ ...s, _binType: 'student' }));
+
+            setItems([...taggedStudents, ...taggedCourses]);
         } catch (err) {
-            console.error("Failed to load bin items", err);
-            // toast.error("Failed to load deleted items.");
-            // For now, let's just use empty state if endpoint fails
-            setItems([]);
+            console.error('Failed to load bin:', err);
         } finally {
             setLoading(false);
         }
@@ -36,40 +43,48 @@ const BinPage = () => {
         loadBin();
     }, []);
 
-    const handleRestore = async (id) => {
+    const handleRestore = async (item) => {
+        const id = item.id;
         try {
             setRestoringId(id);
-            await restoreCourse(id);
+            if (item._binType === 'student') {
+                console.log('Restoring student item:', item);
+                await restoreStudent(item.id ?? item.student_id);
+                const name = [item.surname_, item.first_name_, item.last_name_].filter(Boolean).join(' ') || item.email;
+                toast.success(`"${name}" restored successfully.`);
+            } else {
+                await restoreCourse(id);
 
-            // Re-apply any cached mappings for this course
-            try {
-                const saved = localStorage.getItem(`deleted_mappings_${id}`);
-                if (saved) {
-                    const mappings = JSON.parse(saved);
-                    if (mappings && mappings.length > 0) {
-                        const promises = mappings.map(m => createMapping({
-                            content_type: m.content_type || 'course',
-                            content_id: String(id),
-                            content_title: m.content_title || items.find(i => i.id === id)?.title || 'Course',
-                            school_id: m.school_id || 0,
-                            grade_ids: Array.isArray(m.grade_ids) ? m.grade_ids.map(Number) : (m.grade_id ? String(m.grade_id).split(',').map(Number) : []),
-                            subscription_type: m.subscription_type || 'premium',
-                            is_active: true,
-                            assigned_by: m.assigned_by || 1
-                        }));
-                        await Promise.all(promises);
+                // Re-apply any cached mappings for this course (Specific to Custom CMS Course Restore)
+                try {
+                    const saved = localStorage.getItem(`deleted_mappings_${id}`);
+                    if (saved) {
+                        const mappings = JSON.parse(saved);
+                        if (mappings && mappings.length > 0) {
+                            const promises = mappings.map(m => createMapping({
+                                content_type: m.content_type || 'course',
+                                content_id: String(id),
+                                content_title: m.content_title || items.find(i => i.id === id)?.title || 'Course',
+                                school_id: m.school_id || 0,
+                                grade_ids: Array.isArray(m.grade_ids) ? m.grade_ids.map(Number) : (m.grade_id ? String(m.grade_id).split(',').map(Number) : []),
+                                subscription_type: m.subscription_type || 'premium',
+                                is_active: true,
+                                assigned_by: m.assigned_by || 1
+                            }));
+                            await Promise.all(promises);
+                        }
+                        localStorage.removeItem(`deleted_mappings_${id}`);
                     }
-                    localStorage.removeItem(`deleted_mappings_${id}`);
+                } catch (err) {
+                    console.warn("Failed to restore previous mappings", err);
                 }
-            } catch (err) {
-                console.warn("Failed to restore previous mappings", err);
-            }
 
-            toast.success(`"${items.find(i => i.id === id)?.title || 'Item'}" restored successfully.`);
-            setItems(prev => prev.filter(item => item.id !== id));
+                toast.success(`"${item.title || 'Item'}" restored successfully.`);
+            }
+            setItems(prev => prev.filter(i => i.id !== id));
         } catch (err) {
-            console.error("Restore failed", err);
-            toast.error("Failed to restore item.");
+            console.error('Restore failed', err);
+            toast.error('Failed to restore. Please try again.');
         } finally {
             setRestoringId(null);
         }
@@ -155,24 +170,28 @@ const BinPage = () => {
                                 </thead>
                                 <tbody>
                                     {paginatedItems.map(item => (
-                                        <tr key={item.id}>
+                                        <tr key={`${item._binType}-${item.id}`}>
                                             <td className="id-cell">#{item.id}</td>
                                             <td className="title-cell">
-                                                <strong>{item.title || item.name || 'Untitled'}</strong>
+                                                <strong>
+                                                    {item._binType === 'student'
+                                                        ? [item.surname_, item.first_name_, item.last_name_].filter(Boolean).join(' ') || item.email
+                                                        : item.title || item.name || 'Untitled'}
+                                                </strong>
                                             </td>
                                             <td>
-                                                <span className="type-badge">
-                                                    {item.category || item.type || 'Course'}
-                                                </span>
+                                                {item._binType === 'student'
+                                                    ? <span className="type-badge" style={{ background: '#eff6ff', color: '#1d4ed8', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700' }}>USER</span>
+                                                    : <span className="type-badge" style={{ background: '#f0fdf4', color: '#166534', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: '700' }}>COURSE</span>}
                                             </td>
                                             <td className="date-cell">
-                                                {item.deleted_at ? new Date(item.deleted_at).toLocaleDateString() : 'Recently'}
+                                                {item.deleted_at ? new Date(item.deleted_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
                                             </td>
                                             <td className="actions-cell">
                                                 <div className="action-buttons-group">
                                                     <button
                                                         className="restore-btn"
-                                                        onClick={() => handleRestore(item.id)}
+                                                        onClick={() => handleRestore(item)}
                                                         disabled={restoringId === item.id || purgingId === item.id}
                                                     >
                                                         {restoringId === item.id ? (
