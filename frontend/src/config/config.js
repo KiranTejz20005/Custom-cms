@@ -7,7 +7,7 @@ const getEnv = (key, defaultValue = null) => {
 const DEFAULT_XANO_BASE_URL = 'https://x8ki-letl-twmt.n7.xano.io/api:j1bkW6GC';
 
 const XANO_BASE_URL = getEnv('VITE_XANO_BASE_URL', DEFAULT_XANO_BASE_URL);
-const XANO_MEMBERS_BASE_URL = getEnv('VITE_XANO_MEMBERS_BASE_URL') || XANO_BASE_URL;
+const XANO_MEMBERS_BASE_URL = getEnv('VITE_XANO_MEMBERS_BASE_URL') || 'https://x8ki-letl-twmt.n7.xano.io/api:dwhFu4S5';
 const XANO_AUTH_BASE_URL = getEnv('VITE_XANO_AUTH_BASE_URL', 'https://x8ki-letl-twmt.n7.xano.io/api:oks0Dp98');
 export const XANO_COURSES_BASE_URL = getEnv('VITE_XANO_COURSES_BASE_URL', DEFAULT_XANO_BASE_URL) || XANO_BASE_URL;
 const XANO_API_KEY = getEnv('VITE_XANO_API_KEY');
@@ -49,6 +49,8 @@ const endpoints = {
         updateChapterOrder: `${XANO_COURSES_BASE_URL}/update_chapter_sequence`, // FIXED: was update_chapter_order
         updateCourseVisibility: `${XANO_COURSES_BASE_URL}/update_course_visibility`,
         publishCourse: `${XANO_COURSES_BASE_URL}/update_course_visibility`,
+        getDeletedCourses: `${XANO_COURSES_BASE_URL}/get_deleted_courses`,
+        restoreCourse: (id) => `${XANO_COURSES_BASE_URL}/restore_course/${id}`,
     },
 };
 

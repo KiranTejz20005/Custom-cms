@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { ChevronDown, Plus, Users, Layers, Info, Trash2 } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
+import AdminDeleteModal from '../components/common/AdminDeleteModal';
 import AssetPicker from '../components/mapping/AssetPicker';
 import { createMapping, getMappingById, updateMapping, getMappings, getSchools, getGrades, getUserCount } from '../services/api';
 
@@ -26,7 +27,6 @@ const MappingControlPage = ({ mode }) => {
   });
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [assetToDelete, setAssetToDelete] = useState(null);
-  const [passkey, setPasskey] = useState('');
 
   const [isMappingTypeDropdownOpen, setIsMappingTypeDropdownOpen] = useState(false);
   const mappingTypeDropdownRef = useRef(null);
@@ -1023,49 +1023,16 @@ const MappingControlPage = ({ mode }) => {
             ))}
           </div>
 
-          <Modal
+          <AdminDeleteModal
             isOpen={showDeleteModal}
             onClose={() => setShowDeleteModal(false)}
-            title={`Move ${assetToDelete?.isExisting ? (pickerType === 'Workshops' ? 'Workshop' : 'Course') : 'Selection'} to Bin`}
-          >
-            <div className="wm-delete-modal-v2">
-              <div className="wm-delete-sidebar">
-                <div className="wm-warning-icon">!</div>
-              </div>
-              <div className="wm-delete-content">
-                <p className="wm-delete-msg">Are you sure you want to move <strong>"{assetToDelete?.title || assetToDelete?.name}"</strong> to Bin.</p>
-                <p className="wm-delete-subtext">This will temporarily "UN-map" {pickerType === 'Workshops' ? 'Workshop' : 'Course'}, you can undo this action from "Bin"</p>
-
-                <div className="wm-passkey-group">
-                  <div className="wm-passkey-box">
-                    <span className="wm-passkey-label">Enter admin passkey *</span>
-                    <input
-                      type="password"
-                      className="wm-passkey-field"
-                      value={passkey}
-                      onChange={(e) => setPasskey(e.target.value)}
-                      placeholder="******"
-                    />
-                  </div>
-                </div>
-
-                <div className="wm-delete-footer">
-                  <button className="wm-discard-btn-v2" onClick={() => setShowDeleteModal(false)}>Discard</button>
-                  <button
-                    className="wm-confirm-btn-v2"
-                    onClick={() => {
-                      if (assetToDelete) handleAssetToggle(assetToDelete);
-                      setShowDeleteModal(false);
-                      setPasskey('');
-                    }}
-                  >
-                    <Trash2 size={16} />
-                    <span>Yes, move to Bin</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Modal>
+            onConfirm={() => {
+              if (assetToDelete) handleAssetToggle(assetToDelete);
+              setShowDeleteModal(false);
+            }}
+            itemName={assetToDelete?.title || assetToDelete?.name}
+            type={assetToDelete?.isExisting ? (pickerType === 'Workshops' ? 'Workshop' : 'Course') : 'Selection'}
+          />
 
           <section className="audience-summary-card glass">
             <div className="summary-info">

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Compass, Users, Layers, ChevronRight, LogOut, User, Book, Newspaper, Heart, School } from 'lucide-react';
+import { Compass, Users, Layers, ChevronRight, LogOut, User, Book, Newspaper, Heart, School, Trash2 } from 'lucide-react';
 
 const Layout = ({ children, title }) => {
   const navigate = useNavigate();
@@ -28,6 +28,7 @@ const Layout = ({ children, title }) => {
         { name: 'Mapping', icon: Compass, path: '/admin/mappings/create' },
         { name: 'Users', icon: User, path: '/admin/config/users' },
         { name: 'Schools', icon: School, path: '/admin/config/schools' },
+        { name: 'Bin', icon: Trash2, path: '/admin/bin' },
       ]
     }
   ];

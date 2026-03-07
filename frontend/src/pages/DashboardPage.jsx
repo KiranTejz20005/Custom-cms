@@ -3,7 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import MappingTable from '../components/dashboard/MappingTable';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
-import { getMappings, deleteMapping, getSchools, getGrades, getCourses } from '../services/api';
+import AdminDeleteModal from '../components/common/AdminDeleteModal';
+import { getMappings, deleteMapping, deleteCourse, getSchools, getGrades, getCourses } from '../services/api';
 import { ChevronDown, Plus, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Download, Users, School, Layers } from 'lucide-react';
 
 const DashboardPage = () => {
@@ -354,9 +355,10 @@ const DashboardPage = () => {
     };
 
     const handleDelete = (mapping) => {
+        const courseId = Number(mapping.course) || Number(mapping.content_id) || Number(mapping.id);
         setDeleteModal({
             isOpen: true,
-            id: mapping.id,
+            id: courseId,
             title: mapping.content_title || 'this mapping'
         });
     };
@@ -365,20 +367,29 @@ const DashboardPage = () => {
         if (!deleteModal.id) return;
         setDeletingId(deleteModal.id);
         try {
-            await deleteMapping(deleteModal.id);
-            setData(prev => prev.filter(m => m.id !== deleteModal.id));
+            await deleteCourse(deleteModal.id);
+
+            // Remove from local state immediately
+            setData(prev => prev.filter(m => {
+                const cid = Number(m.course) || Number(m.content_id) || Number(m.id);
+                return cid !== deleteModal.id;
+            }));
             setTotal(prev => Math.max(0, prev - 1));
-            setToast({ type: 'success', message: 'Mapping deleted successfully.' });
+
+            setToast({ type: 'success', message: 'Course deleted successfully.' });
             setDeleteModal({ isOpen: false, id: null, title: '' });
+
+            // Reload fresh data from server
+            await loadData();
         } catch (err) {
-            setToast({ type: 'error', message: err.message || 'Failed to delete mapping.' });
+            setToast({ type: 'error', message: err.message || 'Failed to delete course.' });
         } finally {
             setDeletingId(null);
         }
     };
 
     const handleEdit = (id) => {
-        navigate(`/admin/mappings/edit/${id}`);
+        navigate(`/admin/courses/edit/${id}`);
     };
 
     const isDashboardHome = !searchParams.get('assetType');
@@ -889,36 +900,17 @@ const DashboardPage = () => {
                 </div>
             </div>
 
-            <Modal
+            <AdminDeleteModal
                 isOpen={deleteModal.isOpen}
                 onClose={() => {
                     if (!deletingId) {
                         setDeleteModal({ isOpen: false, id: null, title: '' });
                     }
                 }}
-                title="Confirm Delete"
-            >
-                <div className="confirm-delete-content">
-                    <p>Are you sure you want to delete this mapping? This cannot be undone.</p>
-                    <p className="target-name">{deleteModal.title}</p>
-                    <div className="confirm-delete-actions">
-                        <button
-                            className="btn-cancel"
-                            onClick={() => setDeleteModal({ isOpen: false, id: null, title: '' })}
-                            disabled={Boolean(deletingId)}
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            className="btn-delete"
-                            onClick={confirmDelete}
-                            disabled={Boolean(deletingId)}
-                        >
-                            {deletingId ? 'Deleting...' : 'Delete'}
-                        </button>
-                    </div>
-                </div>
-            </Modal>
+                onConfirm={confirmDelete}
+                itemName={deleteModal.title}
+                type={searchParams.get('assetType') === 'workshop' ? 'Workshop' : 'Course'}
+            />
 
             <style dangerouslySetInnerHTML={{
                 __html: `

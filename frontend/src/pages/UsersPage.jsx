@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, Eye, EyeOff, Key, Save, X, Loader2, Users, School, Layers, Trash2, Plus, ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight, SlidersHorizontal, ChevronDown, Filter, ArrowUpDown } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
+import AdminDeleteModal from '../components/common/AdminDeleteModal';
 import Toast from '../components/common/Toast';
 import { getUsers, updateUser, getSchools, getGrades, deleteUser } from '../services/api';
 
@@ -618,19 +619,13 @@ const UsersPage = () => {
         </div>
       )}
 
-      {/* ===== DELETE MODAL (preserved) ===== */}
-      <Modal isOpen={isDeleteModalOpen} onClose={() => setIsDeleteModalOpen(false)} title="Confirm Delete">
-        <div className="delete-modal-content">
-          <p>Are you sure you want to delete the user <strong>{userToDelete?.name || userToDelete?.email}</strong>?</p>
-          <p className="warning-text">This action cannot be undone.</p>
-          <div className="modal-actions">
-            <button className="btn-cancel" onClick={() => setIsDeleteModalOpen(false)} disabled={deletingUser}>Cancel</button>
-            <button className="btn-delete" onClick={handleDeleteUser} disabled={deletingUser}>
-              {deletingUser ? <Loader2 className="animate-spin" size={16} /> : "Delete User"}
-            </button>
-          </div>
-        </div>
-      </Modal>
+      <AdminDeleteModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleDeleteUser}
+        itemName={userToDelete?.name || userToDelete?.email}
+        type="User"
+      />
 
       {/* ===== PASSWORD MODAL (preserved) ===== */}
       <Modal isOpen={isPasswordModalOpen} onClose={() => setIsPasswordModalOpen(false)} title="Change User Password">

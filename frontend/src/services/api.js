@@ -83,6 +83,10 @@ export const deleteQuiz = (id) => client.delete(`${courses.deleteQuiz}/${id}`);
 export const updateChapterOrder = (data) => client.post(courses.updateChapterOrder, data);
 export const updateCourseVisibility = (data) => client.post(courses.updateCourseVisibility, data);
 export const publishCourse = (data) => client.post(courses.updateCourseVisibility, data);
+export const updateCourse = (id, data) => client.patch(`${config.xano.coursesBaseUrl}/update_course/${id}`, data);
+export const deleteCourse = (id) => client.delete(`${config.xano.coursesBaseUrl}/delete_course/${id}`);
+export const getBin = () => client.get(courses.getDeletedCourses);
+export const restoreCourse = (id) => client.patch(courses.restoreCourse(id));
 
 // Default export as courses base (legacy compatibility)
 export default {

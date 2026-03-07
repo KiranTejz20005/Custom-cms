@@ -157,7 +157,7 @@ const MappingTable = ({ mappings, onEdit, onDelete, deletingId, assetType, hideA
                 {!hideActions && (
                   <td className="actions-cell">
                     <div className="action-buttons">
-                      <button className="icon-btn edit" title="Edit" onClick={() => onEdit(m.id)} disabled={deletingId === m.id}>
+                      <button className="icon-btn edit" title="Edit" onClick={() => onEdit(getDisplayId(m))} disabled={deletingId === m.id}>
                         <Edit2 size={16} />
                       </button>
                       <button
