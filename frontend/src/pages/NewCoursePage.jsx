@@ -442,7 +442,8 @@ const NewCoursePage = () => {
                     body_content: content,
                     youtube_url: youtubeUrl,
                     attachments: attachments.map(a => ({ name: a.name })),
-                    visibility_level: "public"
+                    visibility_level: "public",
+                    grades: selectedGradeIds.map(Number)
                 };
 
                 console.log("create_course payload:", JSON.stringify(payload));

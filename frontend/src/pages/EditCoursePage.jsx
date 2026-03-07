@@ -105,6 +105,9 @@ const EditCoursePage = () => {
                         const preselected = instructorsList.filter(i => course.instructor.includes(i.id));
                         setSelectedInstructors(preselected);
                     }
+                    if (Array.isArray(course.grades)) {
+                        setSelectedGradeIds(course.grades.map(Number));
+                    }
                     setCurrentCourseId(course.id);
                 } else {
                     toast.error('Course not found.');
@@ -216,7 +219,8 @@ const EditCoursePage = () => {
                 body_content: content,
                 youtube_url: youtubeUrl,
                 attachments: attachments.map(a => ({ name: a.name })),
-                visibility_level: 'public'
+                visibility_level: 'public',
+                grades: selectedGradeIds.map(Number)
             };
             await updateCourse(currentCourseId, payload);
             toast.success('Course details updated.');
