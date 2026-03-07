@@ -24,9 +24,9 @@ const DashboardPage = () => {
 
     const [filters, setFilters] = useState({
         search: searchParams.get('search') || '',
-        assetType: searchParams.get('assetType') || '',
+        assetType: searchParams.get('assetType') || 'course',
         category: searchParams.get('category') ? searchParams.get('category').split(',') : ['All'],
-        userType: searchParams.get('userType') || '',
+        userType: searchParams.get('userType') || 'All',
         gradeIds: searchParams.get('gradeIds') ? searchParams.get('gradeIds').split(',').map(Number) : [],
         schoolIds: searchParams.get('schoolIds') ? searchParams.get('schoolIds').split(',').map(Number) : []
     });
@@ -51,7 +51,7 @@ const DashboardPage = () => {
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
 
-    const [hasSubmitted, setHasSubmitted] = useState(!!searchParams.get('search'));
+    const [hasSubmitted, setHasSubmitted] = useState(true);
 
     const schoolDropdownRef = React.useRef(null);
     const gradeDropdownRef = React.useRef(null);
@@ -102,10 +102,10 @@ const DashboardPage = () => {
 
     // Update internal state if URL changes
     useEffect(() => {
-        const urlType = searchParams.get('assetType') || '';
+        const urlType = searchParams.get('assetType') || 'course';
         const urlSearch = searchParams.get('search') || '';
         const urlCategory = searchParams.get('category') ? searchParams.get('category').split(',') : ['All'];
-        const urlUserType = searchParams.get('userType') || '';
+        const urlUserType = searchParams.get('userType') || 'All';
         const urlGradeIds = searchParams.get('gradeIds') ? searchParams.get('gradeIds').split(',').map(Number) : [];
         const urlSchoolIds = searchParams.get('schoolIds') ? searchParams.get('schoolIds').split(',').map(Number) : [];
 
@@ -118,14 +118,8 @@ const DashboardPage = () => {
             schoolIds: urlSchoolIds
         });
 
-        const isUrlFormComplete = urlType && urlUserType && (urlUserType.toLowerCase() !== 'school' || urlSchoolIds.length > 0) && urlGradeIds.length > 0;
-
-        if (urlSearch || isUrlFormComplete) {
-            setHasSubmitted(true);
-        } else {
-            setHasSubmitted(false);
-            setData([]); // Clear data if filters are reset or incomplete
-        }
+        // Always show the table on this page by default
+        setHasSubmitted(true);
     }, [searchParams]);
 
     // Fetch context-aware categories when asset type changes
@@ -286,7 +280,7 @@ const DashboardPage = () => {
             }
 
             // User Type Filter
-            if (filters.userType) {
+            if (filters.userType && filters.userType.toLowerCase() !== 'all') {
                 rows = rows.filter(r => {
                     const rType = (r.subscription_type || '').toLowerCase();
                     const fType = filters.userType.toLowerCase();
@@ -358,20 +352,17 @@ const DashboardPage = () => {
     };
 
     const isPremiumOrUltra = String(filters.userType || '').toLowerCase() === 'premium' || String(filters.userType || '').toLowerCase() === 'ultra';
+    const isAllUserType = String(filters.userType || '').toLowerCase() === 'all';
 
-    // Step-by-step logic
-    const canShowSchool = isSchoolUserType;
-    const canShowGrades = (isSchoolUserType && filters.schoolIds.length > 0) || (filters.userType !== '' && !isSchoolUserType);
-    const canShowCategory = filters.gradeIds.length > 0;
+    // Step-by-step logic - relaxed to allow "All" defaults
+    const canShowSchool = isSchoolUserType || isAllUserType;
+    const canShowGrades = true; // Always show grades
+    const canShowCategory = true; // Always show category
 
     // Form completeness validation
-    const isFormComplete =
-        filters.userType !== '' &&
-        (!isSchoolUserType || filters.schoolIds.length > 0) &&
-        filters.gradeIds.length > 0 &&
-        filters.category.length > 0;
+    const isFormComplete = true; // Always allowed since everything defaults to All
 
-    const isAnyFilterSelected = filters.userType !== '' || filters.schoolIds.length > 0 || filters.gradeIds.length > 0 || (filters.category.length > 0 && !filters.category.includes('All'));
+    const isAnyFilterSelected = true; // Always true to show data by default
 
     const handleSubmit = () => {
         if (!isFormComplete) return;
@@ -547,10 +538,10 @@ const DashboardPage = () => {
                 <header className="dashboard-header animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
                     <div className="header-text">
                         <h1 style={{ margin: 0, fontSize: '32px', fontWeight: '800', color: '#1e293b', letterSpacing: '-0.5px' }}>
-                            {searchParams.get('assetType') ? `${searchParams.get('assetType').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}` : 'Courses'}
+                            {(!searchParams.get('assetType') || searchParams.get('assetType') === 'course') ? 'Courses' : searchParams.get('assetType').replace(/_/g, ' ').split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}
                         </h1>
                         <p style={{ margin: '4px 0 0 0', fontSize: '15px', color: '#64748b', fontWeight: '500' }}>
-                            Manage and monitor all {searchParams.get('assetType') ? searchParams.get('assetType').replace(/_/g, ' ') : 'course'}-to-audience assignments.
+                            Manage and monitor all {searchParams.get('assetType') ? searchParams.get('assetType').replace(/_/g, ' ') : 'courses'}-to-audience assignments.
                         </p>
                     </div>
 
@@ -640,15 +631,15 @@ const DashboardPage = () => {
                                 <span className="combo-label">User Type</span>
                                 <span className="combo-divider"></span>
                                 <div className="combo-trigger" onClick={() => setIsUserTypeDropdownOpen(!isUserTypeDropdownOpen)}>
-                                    <span style={{ fontSize: '13px', fontWeight: '500', color: filters.userType ? '#1e293b' : '#64748b' }}>
-                                        {filters.userType || 'Select'}
+                                    <span style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b' }}>
+                                        {filters.userType || 'All'}
                                     </span>
                                     <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                                 </div>
                                 {isUserTypeDropdownOpen && (
                                     <div className="paged-dropdown-menu custom-combo-menu">
                                         <div className="dropdown-options-list">
-                                            {['Premium', 'Ultra', 'School'].map(t => (
+                                            {['All', 'Premium', 'Ultra', 'School'].map(t => (
                                                 <label key={t} className="menu-item-check">
                                                     <input
                                                         type="radio"
@@ -680,8 +671,8 @@ const DashboardPage = () => {
                                     <span className="combo-label">School</span>
                                     <span className="combo-divider"></span>
                                     <div className="combo-trigger" onClick={() => setIsSchoolDropdownOpen(!isSchoolDropdownOpen)}>
-                                        <span style={{ fontSize: '13px', fontWeight: '500', color: filters.schoolIds.length > 0 ? '#1e293b' : '#64748b' }}>
-                                            {filters.schoolIds.length === 0 ? 'Select' : (schools.find(s => Number(s.id) === Number(filters.schoolIds[0]))?.name || 'Selected')}
+                                        <span style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b' }}>
+                                            {filters.schoolIds.length === 0 ? 'All' : (schools.find(s => Number(s.id) === Number(filters.schoolIds[0]))?.name || 'Selected')}
                                         </span>
                                         <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                                     </div>
@@ -714,8 +705,8 @@ const DashboardPage = () => {
                                     <span className="combo-label">Grade</span>
                                     <span className="combo-divider"></span>
                                     <div className="combo-trigger" onClick={() => setIsGradeDropdownOpen(!isGradeDropdownOpen)}>
-                                        <span style={{ fontSize: '13px', fontWeight: '500', color: filters.gradeIds.length > 0 ? '#1e293b' : '#64748b' }}>
-                                            {filters.gradeIds.length === 0 ? 'Select' : (grades.find(g => g.id === filters.gradeIds[0])?.name || 'Selected')}
+                                        <span style={{ fontSize: '13px', fontWeight: '500', color: '#1e293b' }}>
+                                            {filters.gradeIds.length === 0 ? 'All' : (grades.find(g => g.id === filters.gradeIds[0])?.name || 'Selected')}
                                         </span>
                                         <ChevronDown size={14} style={{ color: '#64748b', marginLeft: '6px' }} />
                                     </div>
@@ -809,18 +800,17 @@ const DashboardPage = () => {
                                 }}
                                 disabled={!isAnyFilterSelected}
                                 onClick={() => {
+                                    const asset = filters.assetType || 'course';
                                     setFilters({
                                         search: '',
-                                        assetType: searchParams.get('assetType') || '',
+                                        assetType: asset,
                                         category: ['All'],
-                                        userType: '',
+                                        userType: 'All',
                                         gradeIds: [],
                                         schoolIds: []
                                     });
-                                    setHasSubmitted(false);
-                                    setData([]);
-                                    const assetType = searchParams.get('assetType');
-                                    setSearchParams(assetType ? { assetType } : {});
+                                    setHasSubmitted(true);
+                                    setSearchParams({ assetType: asset });
                                 }}
                             >Reset</button>
                         </div>

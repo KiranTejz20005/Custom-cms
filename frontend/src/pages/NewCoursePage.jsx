@@ -672,14 +672,9 @@ const NewCoursePage = () => {
             });
             toast.success('Course Published successfully');
 
-            // Redirect to dashboard with filters applied
-            const params = new URLSearchParams();
-            params.set('assetType', 'course');
-            params.set('search', courseName);
-
             setTimeout(() => {
-                navigate(`/admin/mappings/view?${params.toString()}`);
-            }, 1500);
+                navigate(`/admin/mappings/view?assetType=course&userType=All`);
+            }, 1000);
         } catch (err) {
             console.error("Publish error:", err);
             toast.error("Failed to publish course.");
