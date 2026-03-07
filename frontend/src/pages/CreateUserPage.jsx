@@ -213,7 +213,9 @@ const CreateUserPage = () => {
                 grade: gradeId,
                 school: schoolId,
             });
-            setStep(2);
+            // setStep(2); // mapping disabled for now
+            showToast('User created successfully!', 'success');
+            setTimeout(() => navigate('/admin/config/users'), 2000);
         } catch (err) {
             console.error('Failed to create student:', err);
             showToast(err?.message || 'Error creating student. Please try again.', 'error');
@@ -345,8 +347,10 @@ const CreateUserPage = () => {
                             <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px', marginBottom: '24px' }}>
                                 <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '16px', pointerEvents: 'none' }}>
                                     <span style={{ color: '#2563eb', fontWeight: '700', fontSize: '15px' }}>Student Details</span>
+                                    {/* MAPPING DISABLED FOR NOW
                                     <span style={{ color: '#9ca3af', fontSize: '18px' }}>→</span>
                                     <span style={{ color: '#9ca3af', fontWeight: '500', fontSize: '15px' }}>Map &amp; Publish</span>
+                                    */}
                                 </div>
                                 <div style={{ display: 'flex', gap: '8px', zIndex: 1 }}>
                                     <button className="cu-btn-outline" onClick={handleReset}>Reset</button>
