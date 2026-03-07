@@ -125,7 +125,7 @@ const BinPage = () => {
                                         <th>Title</th>
                                         <th>Category</th>
                                         <th>Deleted On</th>
-                                        <th className="text-right">Actions</th>
+                                        <th style={{ textAlign: 'right' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
