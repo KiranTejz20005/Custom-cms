@@ -41,6 +41,10 @@ const NewCoursePage = () => {
     const handleFileChange = (e, type) => {
         const file = e.target.files[0];
         if (file) {
+            if (file.size > 1 * 1024 * 1024) {
+                toast.error("File size must be less than 1MB");
+                return;
+            }
             if (type === 'attachment') {
                 setAttachments(prev => [...prev, { name: file.name, size: file.size }]);
                 return;
@@ -541,6 +545,7 @@ const NewCoursePage = () => {
             // Logic: For each school in mappedSchools and each selectedUserType, create/update mapping
             const mappingPromises = [];
 
+            // 1. Create mapping for schools in mappedSchools
             for (const school of mappedSchools) {
                 for (const userType of selectedUserTypes) {
                     mappingPromises.push(createMapping({
@@ -556,8 +561,27 @@ const NewCoursePage = () => {
                 }
             }
 
-            // We could also call deleteMapping for unmappedSchools if we had their mapping IDs,
-            // but for now we focus on creating mappings for the selected ones.
+            // 2. Clear mapping for schools in unmappedSchools (Optional: only for ones that were mapped)
+            const currentMappedIdsForCourse = (mappings || []).filter(m =>
+                String(m.course_id ?? m.content_id) === String(currentCourseId)
+            ).map(m => Number(m.school_id));
+
+            for (const school of unmappedSchools) {
+                if (currentMappedIdsForCourse.includes(Number(school.id))) {
+                    for (const userType of selectedUserTypes) {
+                        mappingPromises.push(createMapping({
+                            content_type: 'course',
+                            content_id: String(currentCourseId),
+                            content_title: courseName,
+                            school_id: Number(school.id),
+                            grade_ids: selectedGradeIds.map(Number),
+                            subscription_type: userType.toLowerCase(),
+                            is_active: false,
+                            assigned_by: 1
+                        }));
+                    }
+                }
+            }
 
             await Promise.all(mappingPromises);
 
