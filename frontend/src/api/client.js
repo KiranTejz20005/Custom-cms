@@ -58,7 +58,8 @@ class APIClient {
                 throw new Error(`HTTP ${response.status}: ${body}`);
             }
 
-            return await response.json();
+            const text = await response.text();
+            return text ? JSON.parse(text) : {};
         } catch (error) {
             console.error(`❌ API Error: ${error.message} (URL: ${url})`);
             throw error;

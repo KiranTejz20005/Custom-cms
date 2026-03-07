@@ -7,8 +7,9 @@ const getEnv = (key, defaultValue = null) => {
 const DEFAULT_XANO_BASE_URL = 'https://x8ki-letl-twmt.n7.xano.io/api:j1bkW6GC';
 
 const XANO_BASE_URL = getEnv('VITE_XANO_BASE_URL', DEFAULT_XANO_BASE_URL);
-const XANO_COURSES_BASE_URL = getEnv('VITE_XANO_COURSES_BASE_URL', DEFAULT_XANO_BASE_URL) || XANO_BASE_URL;
 const XANO_MEMBERS_BASE_URL = getEnv('VITE_XANO_MEMBERS_BASE_URL') || XANO_BASE_URL;
+const XANO_AUTH_BASE_URL = getEnv('VITE_XANO_AUTH_BASE_URL', 'https://x8ki-letl-twmt.n7.xano.io/api:oks0Dp98');
+export const XANO_COURSES_BASE_URL = getEnv('VITE_XANO_COURSES_BASE_URL', DEFAULT_XANO_BASE_URL) || XANO_BASE_URL;
 const XANO_API_KEY = getEnv('VITE_XANO_API_KEY');
 const RAW_HTTP_TIMEOUT = Number(getEnv('VITE_HTTP_TIMEOUT_MS', 30000));
 const HTTP_TIMEOUT_MS = Number.isFinite(RAW_HTTP_TIMEOUT) && RAW_HTTP_TIMEOUT > 0 ? RAW_HTTP_TIMEOUT : 30000;
@@ -23,7 +24,7 @@ const endpoints = {
         deleteUser: (id) => `${XANO_MEMBERS_BASE_URL}/user/${id}`,
         updateStudent: `${XANO_MEMBERS_BASE_URL}/update_student`,
         deleteStudent: `${XANO_MEMBERS_BASE_URL}/delete_student`,
-        createStudent: `${XANO_MEMBERS_BASE_URL}/create_student`,
+        createStudent: `${XANO_AUTH_BASE_URL}/create_student`,
     },
     courses: {
         getAllCourses: `${XANO_COURSES_BASE_URL}/get_all_courses`,
@@ -54,6 +55,7 @@ const endpoints = {
 const config = {
     xano: {
         baseUrl: XANO_BASE_URL,
+        authBaseUrl: XANO_AUTH_BASE_URL,
         coursesBaseUrl: XANO_COURSES_BASE_URL,
         membersBaseUrl: XANO_MEMBERS_BASE_URL,
         apiKey: XANO_API_KEY,

@@ -49,9 +49,7 @@ const Layout = ({ children, title }) => {
                   const currentFull = location.pathname + location.search;
                   const isActive = item.path.includes('?')
                     ? currentFull === item.path
-                    : item.path === '/admin/mappings/view'
-                      ? currentFull === '/admin/mappings/view'
-                      : location.pathname.startsWith(item.path);
+                    : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
 
                   return (
                     <button

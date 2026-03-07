@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Loader2, Plus, Trash2, Upload, Search, Check } from 'lucide-react';
+import { ChevronLeft, Loader2, Plus, Trash2, Upload, Search, Check, Layers, ChevronDown } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
 import { getGrades, getSchools, getCourses, getWorkshops, createStudent, getUsers } from '../services/api';
@@ -25,7 +25,6 @@ const CreateUserPage = () => {
     const [mobile, setMobile] = useState('');
     const [email, setEmail] = useState('');
     const [subscriptionType, setSubscriptionType] = useState('');
-    const [startDate, setStartDate] = useState('');
     const [gradeId, setGradeId] = useState('');
     const [parentName, setParentName] = useState('');
     const [address, setAddress] = useState('');
@@ -114,32 +113,37 @@ const CreateUserPage = () => {
                 (mobile && u.mobile && u.mobile === mobile)
             );
             if (duplicate) {
-                const msg = duplicate.email?.toLowerCase() === email.toLowerCase()
-                    ? 'A user with this email already exists.'
-                    : 'A user with this mobile number already exists.';
-                setErrors(prev => ({ ...prev, email: msg }));
+                if (duplicate.email?.toLowerCase() === email.toLowerCase()) {
+                    setErrors(prev => ({ ...prev, email: 'A user with this email already exists.' }));
+                } else {
+                    setErrors(prev => ({ ...prev, mobile: 'A user with this mobile number already exists.' }));
+                }
                 setSaving(false);
                 return;
             }
-            const fullName = [surname, firstName, lastName].filter(Boolean).join(' ').trim();
             const body = {
-                name: fullName,
+                first_name_: firstName.trim(),
+                last_name_: lastName.trim() || '',
+                surname_: surname.trim() || '',
                 email: email.trim(),
                 password: 'Test@1234',
                 grade: Number(gradeId),
+                grade_level: Number(gradeId),
                 school: Number(schoolId) || 0,
+                school_id: Number(schoolId) || 0,
                 subscription_type: subscriptionType.toLowerCase(),
-                start_date: startDate || null,
                 mobile: mobile,
+                mobile_: mobile,
                 parent_name: parentName.trim(),
-                address: address.trim(),
+                address: address.trim()
             };
 
             const res = await createStudent(body);
+
             const studentId = res?.id || res?.data?.id || res?.user_id;
             setCreatedStudent({
                 id: studentId,
-                name: fullName,
+                name: [surname, firstName, lastName].filter(Boolean).join(' ').trim(),
                 email: email.trim(),
                 subscription_type: subscriptionType,
                 grade: gradeId,
@@ -158,7 +162,7 @@ const CreateUserPage = () => {
     const handleReset = () => {
         setSurname(''); setFirstName(''); setLastName('');
         setMobile(''); setEmail(''); setSubscriptionType('');
-        setStartDate(''); setGradeId(''); setParentName('');
+        setGradeId(''); setParentName('');
         setAddress(''); setSchoolId(''); setInstitution('');
         setErrors({});
     };
@@ -166,6 +170,15 @@ const CreateUserPage = () => {
     const handleOpenPicker = (type) => {
         setPickerType(type);
         setShowAssetPicker(true);
+    };
+
+    const handleAssetToggle = (asset) => {
+        const setter = asset.type === 'Workshops' ? setSelectedWorkshops : setSelectedCourses;
+        setter(prev => {
+            const exists = prev.some(item => item.id === asset.id);
+            if (exists) return prev.filter(item => item.id !== asset.id);
+            return [...prev, asset];
+        });
     };
 
     /* ── Step 2 — toggle course/workshop selection in modal ── */
@@ -279,13 +292,13 @@ const CreateUserPage = () => {
                                 <span style={{ color: '#6b7280' }}>New user</span>
                             </div>
                             {/* ── Step 1: stepper + Reset/Next ── */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px', marginBottom: '24px' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                                    <span style={{ color: '#2563eb', fontWeight: '700', fontSize: '16px' }}>Student Details</span>
-                                    <span style={{ color: '#9ca3af', fontSize: '20px' }}>→</span>
-                                    <span style={{ color: '#9ca3af', fontWeight: '400', fontSize: '16px' }}>Map &amp; Publish</span>
+                            <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px', marginBottom: '24px' }}>
+                                <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '16px', pointerEvents: 'none' }}>
+                                    <span style={{ color: '#2563eb', fontWeight: '700', fontSize: '15px' }}>Student Details</span>
+                                    <span style={{ color: '#9ca3af', fontSize: '18px' }}>→</span>
+                                    <span style={{ color: '#9ca3af', fontWeight: '500', fontSize: '15px' }}>Map &amp; Publish</span>
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px' }}>
+                                <div style={{ display: 'flex', gap: '8px', zIndex: 1 }}>
                                     <button className="cu-btn-outline" onClick={handleReset}>Reset</button>
                                     <button className="cu-btn-primary" onClick={handleNext} disabled={saving}>
                                         {saving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : 'Next'}
@@ -355,7 +368,12 @@ const CreateUserPage = () => {
 
                                     <div style={{ marginBottom: 20 }}>
                                         <label className="cu-label">Mobile*</label>
-                                        <input className="cu-input" value={mobile} onChange={e => setMobile(e.target.value)} />
+                                        <input
+                                            className={`cu-input ${errors.mobile ? 'cu-input-err' : ''}`}
+                                            value={mobile}
+                                            onChange={e => { setMobile(e.target.value); setErrors(prev => ({ ...prev, mobile: '' })); }}
+                                        />
+                                        {errors.mobile && <span className="cu-err">{errors.mobile}</span>}
                                     </div>
 
                                     <div style={{ marginBottom: 20 }}>
@@ -394,11 +412,6 @@ const CreateUserPage = () => {
                                             {errors.schoolId && <span className="cu-err">{errors.schoolId}</span>}
                                         </div>
                                     )}
-
-                                    <div style={{ marginBottom: 20 }}>
-                                        <label className="cu-label">Start Date*</label>
-                                        <input className="cu-input" type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
-                                    </div>
 
                                     <div style={{ marginBottom: 20 }}>
                                         <label className="cu-label">Grade*</label>
@@ -544,70 +557,107 @@ const CreateUserPage = () => {
                                     <div className="cu-loading"><Loader2 size={28} className="animate-spin" /><span>Loading assets...</span></div>
                                 ) : (
                                     <>
-                                        {/* ── Courses Section ── */}
-                                        <div className="cu-map-section">
-                                            <div className="cu-map-header">
-                                                <span className="cu-map-title">Courses</span>
-                                                <span className="cu-map-count">{selectedCourses.length} Mapped</span>
-                                                <button className="cu-btn-add" onClick={() => handleOpenPicker('Courses')}>
-                                                    <Plus size={14} /> Add
-                                                </button>
+                                        {/* ── Assets Section (Step 2) ── */}
+                                        <div className="asset-sections">
+                                            {/* ── Courses Section ── */}
+                                            <div className="asset-row open">
+                                                <div className="row-header">
+                                                    <div className="header-title">
+                                                        <Layers size={18} className="icon" />
+                                                        <span>Courses</span>
+                                                        <span className="count-badge">{selectedCourses.length} Selected</span>
+                                                    </div>
+                                                    <div className="header-actions">
+                                                        <button className="add-btn" onClick={() => handleOpenPicker('Courses')}>
+                                                            <Plus size={14} /> Add
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="row-content">
+                                                    {selectedCourses.length === 0 ? (
+                                                        <div className="empty-state">No courses selected yet. Click <strong>+ Add</strong> to select.</div>
+                                                    ) : (
+                                                        <div className="split-asset-tables">
+                                                            <div className="asset-sub-section">
+                                                                <table className="assets-table">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>#</th><th>COURSE NAME</th><th>CATEGORY</th><th>MAPPED DATE</th><th>ACTIONS</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {selectedCourses.map((c, i) => (
+                                                                            <tr key={c.id}>
+                                                                                <td className="row-num">{i + 1}</td>
+                                                                                <td className="asset-name-cell">{c.title || c.name}</td>
+                                                                                <td><span className="type-badge">{c.category || '—'}</span></td>
+                                                                                <td style={{ fontSize: '12px', color: '#64748b' }}>
+                                                                                    {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                                </td>
+                                                                                <td>
+                                                                                    <button className="remove-row-btn bin-btn" onClick={() => removeCourse(c.id)} title="Remove">
+                                                                                        <Trash2 size={16} />
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {selectedCourses.length === 0 ? (
-                                                <div className="cu-map-empty">No courses selected yet. Click <strong>+ Add</strong> to select.</div>
-                                            ) : (
-                                                <table className="cu-map-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>#</th><th>NAME</th><th>CATEGORY</th><th>MAPPED DATE</th><th>ACTIONS</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {selectedCourses.map((c, i) => (
-                                                            <tr key={c.id}>
-                                                                <td>{i + 1}</td>
-                                                                <td>{c.title || c.name}</td>
-                                                                <td>{c.category || '—'}</td>
-                                                                <td>{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                                                                <td><button className="cu-del-btn" onClick={() => removeCourse(c.id)}><Trash2 size={14} /></button></td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            )}
-                                        </div>
 
-                                        {/* ── Workshops Section ── */}
-                                        <div className="cu-map-section">
-                                            <div className="cu-map-header">
-                                                <span className="cu-map-title">Workshops</span>
-                                                <span className="cu-map-count">{selectedWorkshops.length} Mapped</span>
-                                                <button className="cu-btn-add" onClick={() => handleOpenPicker('Workshops')}>
-                                                    <Plus size={14} /> Add
-                                                </button>
+                                            {/* ── Workshops Section ── */}
+                                            <div className="asset-row open">
+                                                <div className="row-header">
+                                                    <div className="header-title">
+                                                        <Layers size={18} className="icon" />
+                                                        <span>Workshops</span>
+                                                        <span className="count-badge">{selectedWorkshops.length} Selected</span>
+                                                    </div>
+                                                    <div className="header-actions">
+                                                        <button className="add-btn" onClick={() => handleOpenPicker('Workshops')}>
+                                                            <Plus size={14} /> Add
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                                <div className="row-content">
+                                                    {selectedWorkshops.length === 0 ? (
+                                                        <div className="empty-state">No workshops selected yet. Click <strong>+ Add</strong> to select.</div>
+                                                    ) : (
+                                                        <div className="split-asset-tables">
+                                                            <div className="asset-sub-section">
+                                                                <table className="assets-table">
+                                                                    <thead>
+                                                                        <tr>
+                                                                            <th>#</th><th>COURSE NAME</th><th>CATEGORY</th><th>MAPPED DATE</th><th>ACTIONS</th>
+                                                                        </tr>
+                                                                    </thead>
+                                                                    <tbody>
+                                                                        {selectedWorkshops.map((w, i) => (
+                                                                            <tr key={w.id}>
+                                                                                <td className="row-num">{i + 1}</td>
+                                                                                <td className="asset-name-cell">{w.title || w.name}</td>
+                                                                                <td><span className="type-badge">{w.category || '—'}</span></td>
+                                                                                <td style={{ fontSize: '12px', color: '#64748b' }}>
+                                                                                    {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                                                                </td>
+                                                                                <td>
+                                                                                    <button className="remove-row-btn bin-btn" onClick={() => removeWorkshop(w.id)} title="Remove">
+                                                                                        <Trash2 size={16} />
+                                                                                    </button>
+                                                                                </td>
+                                                                            </tr>
+                                                                        ))}
+                                                                    </tbody>
+                                                                </table>
+                                                            </div>
+                                                        </div>
+                                                    )}
+                                                </div>
                                             </div>
-                                            {selectedWorkshops.length === 0 ? (
-                                                <div className="cu-map-empty">No workshops selected yet. Click <strong>+ Add</strong> to select.</div>
-                                            ) : (
-                                                <table className="cu-map-table">
-                                                    <thead>
-                                                        <tr>
-                                                            <th>#</th><th>NAME</th><th>CATEGORY</th><th>MAPPED DATE</th><th>ACTIONS</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        {selectedWorkshops.map((w, i) => (
-                                                            <tr key={w.id}>
-                                                                <td>{i + 1}</td>
-                                                                <td>{w.title || w.name}</td>
-                                                                <td>{w.category || '—'}</td>
-                                                                <td>{new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</td>
-                                                                <td><button className="cu-del-btn" onClick={() => removeWorkshop(w.id)}><Trash2 size={14} /></button></td>
-                                                            </tr>
-                                                        ))}
-                                                    </tbody>
-                                                </table>
-                                            )}
                                         </div>
                                     </>
                                 )}
@@ -625,28 +675,21 @@ const CreateUserPage = () => {
             >
                 <AssetPicker
                     type={pickerType}
-                    onSelect={(asset) => {
-                        const setter = pickerType === 'Courses' ? setSelectedCourses : setSelectedWorkshops;
-                        setter(prev => {
-                            const exists = prev.some(c => c.id === asset.id);
-                            if (exists) return prev.filter(c => c.id !== asset.id);
-                            return [...prev, asset];
-                        });
-                    }}
-                    selectedIds={(pickerType === 'Courses' ? selectedCourses : selectedWorkshops).map(c => c.id)}
+                    onSelect={handleAssetToggle}
+                    selectedIds={pickerType === 'Courses' ? selectedCourses.map(c => c.id) : selectedWorkshops.map(w => w.id)}
                     selectedFilters={{
-                        userType: subscriptionType === 'ultra' ? 'Ultra' : subscriptionType === 'premium' ? 'Premium' : 'School',
+                        userType: subscriptionType === 'ultra' ? 'Ultra' :
+                            subscriptionType === 'premium' ? 'Premium' : 'School',
                         gradeIds: [Number(gradeId)],
                         schoolIds: schoolId ? [Number(schoolId)] : [],
                         assignmentMode: 'User'
                     }}
                     schools={schools}
                     grades={grades}
-                    onFilterChange={() => { }}
                 />
                 <div style={{ marginTop: '24px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-                    <button onClick={() => setShowAssetPicker(false)} style={{ padding: '8px 20px', border: '1px solid #d1d5db', borderRadius: '6px', background: 'white', cursor: 'pointer' }}>Close</button>
-                    <button onClick={() => setShowAssetPicker(false)} style={{ padding: '8px 20px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '600', cursor: 'pointer' }}>Save Selections</button>
+                    <button className="cu-btn-secondary" onClick={() => setShowAssetPicker(false)}>Close</button>
+                    <button className="cu-btn-primary" onClick={() => setShowAssetPicker(false)}>Save Selections</button>
                 </div>
             </Modal>
 
@@ -809,51 +852,55 @@ const CreateUserPage = () => {
         .up-badge.ultra { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
         .up-badge.premium { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
 
-        /* ── Map Section ── */
-        .cu-map-section {
-          background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
-          overflow: hidden; margin-bottom: 18px;
+        /* ── Map Section (Matching MappingControlPage) ── */
+        .asset-sections { display: flex; flex-direction: column; gap: 12px; }
+        .asset-row {
+          background: white; border: 1px solid #e2e8f0; border-radius: 8px;
+          overflow: hidden; transition: all 0.2s;
         }
-        .cu-map-header {
-          display: flex; align-items: center; gap: 12px;
-          padding: 14px 20px; background: #f8fafc;
-          border-bottom: 1px solid #e2e8f0;
+        .asset-row.open { border-color: #2563eb; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.05); }
+        .row-header {
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 14px 24px; background: #f8fafc;
         }
-        .cu-map-title { font-size: 15px; font-weight: 700; color: #1e293b; }
-        .cu-map-count {
-          font-size: 12px; font-weight: 600; color: #3b5bdb;
-          background: #eef2ff; padding: 3px 10px; border-radius: 999px;
+        .header-title { display: flex; align-items: center; gap: 12px; }
+        .header-title .icon { color: #2563eb; }
+        .header-title span { font-weight: 700; color: #1e293b; font-size: 15px; }
+        .count-badge {
+          font-size: 11px; background: #eef2ff; color: #2563eb;
+          padding: 2px 10px; border-radius: 12px; margin-left: 8px; font-weight: 600;
         }
-        .cu-btn-add {
-          display: flex; align-items: center; gap: 4px;
-          margin-left: auto; padding: 6px 14px;
-          background: #eef2ff; color: #3b5bdb; border: 1px solid #c7d2fe;
+        .add-btn {
+          display: flex; align-items: center; gap: 6px;
+          background: #dcfce7; color: #166534; padding: 6px 14px;
           border-radius: 6px; font-size: 13px; font-weight: 600;
-          cursor: pointer; transition: all 0.12s;
+          cursor: pointer; border: none; transition: all 0.2s;
         }
-        .cu-btn-add:hover { background: #3b5bdb; color: #fff; border-color: #3b5bdb; }
-        .cu-map-empty {
-          padding: 40px 20px; text-align: center; color: #94a3b8; font-size: 14px;
+        .add-btn:hover { background: #bbf7d0; transform: scale(1.02); }
+        .row-content { padding: 20px 24px; border-top: 1px solid #f1f5f9; }
+        .empty-state {
+          padding: 32px; text-align: center; color: #94a3b8; font-size: 14px;
+          border: 2px dashed #e2e8f0; border-radius: 6px;
         }
-        .cu-map-table {
-          width: 100%; border-collapse: collapse;
+        .assets-table { width: 100%; border-collapse: collapse; }
+        .assets-table th {
+          padding: 10px 14px; text-align: left; font-weight: 600; color: #64748b;
+          font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em;
+          border-bottom: 2px solid #f1f5f9;
         }
-        .cu-map-table th {
-          background: #f8fafc; padding: 10px 16px; font-size: 11px; font-weight: 700;
-          text-transform: uppercase; letter-spacing: 0.04em; color: #64748b;
-          border-bottom: 1px solid #e2e8f0; text-align: left;
+        .assets-table td { padding: 12px 14px; color: #1e293b; border-bottom: 1px solid #f1f5f9; font-size: 14px; }
+        .row-num { color: #94a3b8; font-weight: 500; width: 30px; }
+        .type-badge {
+          background: #f1f5f9; color: #475569; padding: 2px 8px;
+          border-radius: 4px; font-size: 11px; font-weight: 600;
         }
-        .cu-map-table td {
-          padding: 12px 16px; font-size: 14px; color: #334155;
-          border-bottom: 1px solid #f1f5f9;
-        }
-        .cu-del-btn {
+        .remove-row-btn {
           background: #fef2f2; color: #ef4444; border: none;
-          width: 28px; height: 28px; border-radius: 6px;
+          width: 32px; height: 32px; border-radius: 6px;
           display: flex; align-items: center; justify-content: center;
-          cursor: pointer; transition: all 0.12s;
+          cursor: pointer; transition: all 0.2s;
         }
-        .cu-del-btn:hover { background: #ef4444; color: #fff; }
+        .remove-row-btn:hover { background: #fee2e2; transform: scale(1.1); }
 
         /* ── Loading ── */
         .cu-loading {

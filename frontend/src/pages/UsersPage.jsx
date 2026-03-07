@@ -110,6 +110,13 @@ const UsersPage = () => {
     fetchMeta();
   }, []);
 
+  const getDisplayName = (student) => {
+    return [student.surname_, student.first_name_, student.last_name_]
+      .filter(Boolean)
+      .join(' ')
+      || student.name || 'Unknown';
+  };
+
   // --- Stats (always computed from full users array) ---
   const ultraCount = users.filter(u => (u.subscription_type || u.type || '').toLowerCase() === 'ultra').length;
   const premiumCount = users.filter(u => (u.subscription_type || u.type || '').toLowerCase() === 'premium').length;
@@ -222,6 +229,9 @@ const UsersPage = () => {
     const matchesSearch = !search.trim() || (() => {
       const q = search.trim().toLowerCase();
       const userName = (user.name || '').toLowerCase();
+      const firstName = (user.first_name_ || '').toLowerCase();
+      const lastName = (user.last_name_ || '').toLowerCase();
+      const surname = (user.surname_ || '').toLowerCase();
       const userEmail = (user.email || '').toLowerCase();
       const userId = String(user.id || '');
       const userType = (user.subscription_type || '').toLowerCase();
@@ -242,6 +252,9 @@ const UsersPage = () => {
 
       return (
         userName.includes(q) ||
+        firstName.includes(q) ||
+        lastName.includes(q) ||
+        surname.includes(q) ||
         userEmail.includes(q) ||
         userId.includes(q) ||
         userType.includes(q) ||
@@ -526,7 +539,7 @@ const UsersPage = () => {
                         onClick={() => navigate(`/admin/config/users/${user.id}`)}
                         style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 500 }}
                       >
-                        {user.name || 'No Name'}
+                        {getDisplayName(user)}
                       </span>
                     </td>
                   )}
