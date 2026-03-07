@@ -393,7 +393,20 @@ const DashboardPage = () => {
     const confirmDelete = async () => {
         if (!deleteModal.id) return;
         setDeletingId(deleteModal.id);
+
         try {
+            // Backup the mappings before we delete the course
+            try {
+                const res = await getMappings({ limit: 1000 });
+                const rows = Array.isArray(res) ? res : (res?.items ? res.items : (res?.data || []));
+                const mappingsToSave = rows.filter(r => Number(r.course || r.content_id || r.course_id) === deleteModal.id);
+                if (mappingsToSave.length > 0) {
+                    localStorage.setItem(`deleted_mappings_${deleteModal.id}`, JSON.stringify(mappingsToSave));
+                }
+            } catch (err) {
+                console.error("Failed to backup mappings", err);
+            }
+
             await deleteCourse(deleteModal.id);
 
             // Remove from local state immediately

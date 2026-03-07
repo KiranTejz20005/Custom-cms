@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/common/Layout';
 import AdminDeleteModal from '../components/common/AdminDeleteModal';
-import { getBin, restoreCourse, purgeCourse } from '../services/api';
+import { getBin, restoreCourse, purgeCourse, createMapping } from '../services/api';
 import { Trash2, RefreshCw, ChevronLeft, ChevronRight, Search, RotateCcw, ShieldAlert, Layers, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -40,6 +40,31 @@ const BinPage = () => {
         try {
             setRestoringId(id);
             await restoreCourse(id);
+
+            // Re-apply any cached mappings for this course
+            try {
+                const saved = localStorage.getItem(`deleted_mappings_${id}`);
+                if (saved) {
+                    const mappings = JSON.parse(saved);
+                    if (mappings && mappings.length > 0) {
+                        const promises = mappings.map(m => createMapping({
+                            content_type: m.content_type || 'course',
+                            content_id: String(id),
+                            content_title: m.content_title || items.find(i => i.id === id)?.title || 'Course',
+                            school_id: m.school_id || 0,
+                            grade_ids: Array.isArray(m.grade_ids) ? m.grade_ids.map(Number) : (m.grade_id ? String(m.grade_id).split(',').map(Number) : []),
+                            subscription_type: m.subscription_type || 'premium',
+                            is_active: true,
+                            assigned_by: m.assigned_by || 1
+                        }));
+                        await Promise.all(promises);
+                    }
+                    localStorage.removeItem(`deleted_mappings_${id}`);
+                }
+            } catch (err) {
+                console.warn("Failed to restore previous mappings", err);
+            }
+
             toast.success(`"${items.find(i => i.id === id)?.title || 'Item'}" restored successfully.`);
             setItems(prev => prev.filter(item => item.id !== id));
         } catch (err) {
