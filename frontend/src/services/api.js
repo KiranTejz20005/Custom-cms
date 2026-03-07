@@ -36,6 +36,7 @@ export const getWorkshops = () => client.get(courses.getAllWorkshops);
 export const getBooks = () => client.get(courses.getAllBooks);
 export const getByteCategories = () => client.get(courses.getAllByteCategories);
 export const getCategories = () => client.get(courses.getAllCategories);
+export const getCourseChapters = (id) => client.get(`${config.xano.coursesBaseUrl}/get_course_chapters/${id}`);
 
 // Mapping CRUD (Courses Base)
 export const getMappings = (params) => client.get(courses.getMappings, params);

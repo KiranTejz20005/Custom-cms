@@ -12,7 +12,7 @@ import {
     getCategories, getCourses, getCourseById, addChapter, createQuiz,
     updateCourseVisibility, getSchools, getGrades, getMappings,
     updateChapter, updateQuiz, deleteChapter, deleteQuiz, updateChapterOrder,
-    createMapping, updateCourse
+    createMapping, updateCourse, getCourseChapters
 } from '../services/api';
 import toast from 'react-hot-toast';
 
@@ -130,9 +130,9 @@ const EditCoursePage = () => {
                     setCurrentCourseId(course.id);
 
                     // --- Load Chapters and Quizzes ---
-                    // Broad mapping to catch variations in API response names
-                    const chaptersRaw = course.chapters || course.chapters_list || course._chapters || course.course_chapters || [];
-                    const quizzesRaw = course.quizzes || course.quizzes_list || course._quizzes || course.course_quizzes || [];
+                    const chaptersRes = await getCourseChapters(id);
+                    const chaptersRaw = chaptersRes.chapters || [];
+                    const quizzesRaw = chaptersRes.quizzes || [];
 
                     const loadedChapters = chaptersRaw.map(ch => ({
                         id: ch.id,
