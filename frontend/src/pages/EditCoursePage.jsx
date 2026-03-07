@@ -9,7 +9,7 @@ import {
     Paperclip, Youtube, ArrowRight
 } from 'lucide-react';
 import {
-    getCategories, getCourses, addChapter, createQuiz,
+    getCategories, getCourses, getCourseById, addChapter, createQuiz,
     updateCourseVisibility, getSchools, getGrades, getMappings,
     updateChapter, updateQuiz, deleteChapter, deleteQuiz, updateChapterOrder,
     createMapping, updateCourse
@@ -45,6 +45,8 @@ const EditCoursePage = () => {
     const [categories, setCategories] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('');
     const [loading, setLoading] = useState(false);
+    const [mappingLoading, setMappingLoading] = useState(false);
+    const [publishingLoading, setPublishingLoading] = useState(false);
     const [initialLoading, setInitialLoading] = useState(true);
 
     const [items, setItems] = useState([]);
@@ -82,12 +84,24 @@ const EditCoursePage = () => {
                 const coursesRes = await getCourses();
                 const schoolsRes = await getSchools();
                 const gradesRes = await getGrades();
+                const mappingsRes = await getMappings({ limit: 1000 });
+
+                const mappingsData = Array.isArray(mappingsRes) ? mappingsRes : (mappingsRes.items || mappingsRes.data || []);
+                setMappings(mappingsData);
 
                 const coursesData = coursesRes.data || coursesRes.items || (Array.isArray(coursesRes) ? coursesRes : []);
                 setAllCourses(coursesData);
+                const courseFromList = coursesData.find(c => String(c.id) === String(id));
 
-                // Find the course being edited
-                const course = coursesData.find(c => String(c.id) === String(id));
+                // 2. Fetch specific course details (usually has more addons like chapters/quizzes)
+                let course;
+                try {
+                    course = await getCourseById(id);
+                } catch (err) {
+                    console.error("Single course fetch failed, falling back to list data:", err);
+                    course = courseFromList;
+                }
+
                 if (course) {
                     setCourseName(course.title || course.name || '');
                     setSelectedCategory(course.category || '');
@@ -109,6 +123,57 @@ const EditCoursePage = () => {
                         setSelectedGradeIds(course.grades.map(Number));
                     }
                     setCurrentCourseId(course.id);
+
+                    // --- Load Chapters and Quizzes ---
+                    // Broad mapping to catch variations in API response names
+                    const chaptersRaw = course.chapters || course.chapters_list || course._chapters || course.course_chapters || [];
+                    const quizzesRaw = course.quizzes || course.quizzes_list || course._quizzes || course.course_quizzes || [];
+
+                    const loadedChapters = chaptersRaw.map(ch => ({
+                        id: ch.id,
+                        type: ch.type || 'chapter',
+                        title: ch.title || '',
+                        content: ch.body_content || '',
+                        youtube_url: ch.youtube_url || '',
+                        order: ch.sequence_order || 0
+                    }));
+
+                    const loadedQuizzes = quizzesRaw.map(qz => ({
+                        id: qz.id,
+                        type: 'quiz',
+                        title: qz.title || '',
+                        questions: (qz.questions || []).map(q => ({
+                            id: q.id || Date.now() + Math.random(),
+                            question: q.question_text || q.question || '',
+                            a: q.answer_a || q.a || '',
+                            b: q.answer_b || q.b || '',
+                            c: q.answer_c || q.c || '',
+                            d: q.answer_d || q.d || '',
+                            correct_answer: q.correct_answer || 'a',
+                            marks: q.marks || 1
+                        })),
+                        order: qz.sequence_order || 0
+                    }));
+
+                    const combinedItems = [...loadedChapters, ...loadedQuizzes].sort((a, b) => (a.order || 0) - (b.order || 0));
+                    setItems(combinedItems);
+                    if (combinedItems.length > 0) {
+                        setActiveItem(combinedItems[0]);
+                    }
+
+                    // --- NEW: Pre-select User Types from existing mappings ---
+                    if (mappingsData.length > 0) {
+                        const courseMappings = mappingsData.filter(m => String(m.course_id ?? m.content_id) === String(id));
+                        const existingTypes = [...new Set(courseMappings.map(m => {
+                            const t = m.subscription_type || '';
+                            if (t.toLowerCase() === 'premium') return 'Premium';
+                            if (t.toLowerCase() === 'ultra') return 'Ultra';
+                            return '';
+                        }))].filter(Boolean);
+                        if (existingTypes.length > 0) {
+                            setSelectedUserTypes(existingTypes);
+                        }
+                    }
                 } else {
                     toast.error('Course not found.');
                     navigate('/admin/mappings/view?assetType=course');
@@ -368,7 +433,7 @@ const EditCoursePage = () => {
         if (selectedGradeIds.length === 0) { toast.error('Select at least one grade.'); return; }
         if (selectedUserTypes.length === 0) { toast.error('Select at least one user type.'); return; }
         if (mappedSchools.length === 0) { toast.error('No schools in the Mapped list.'); return; }
-        setLoading(true);
+        setMappingLoading(true);
         try {
             const promises = [];
             for (const school of mappedSchools) {
@@ -382,18 +447,27 @@ const EditCoursePage = () => {
             }
             await Promise.all(promises);
 
-            // Also mark the course as published
-            try {
-                await publishCourse({
-                    course_id: Number(currentCourseId),
-                    is_published: true,
-                    visibility_level: 'public'
-                });
-            } catch (publishErr) {
-                console.error("Failed to publish course visibility:", publishErr);
-            }
+            toast.success(`Mapping applied successfully to ${mappedSchools.length} schools.`);
+        } catch (err) {
+            toast.error('Failed to apply mapping.');
+        } finally {
+            setMappingLoading(false);
+        }
+    };
 
-            toast.success(`Published and mapped to ${mappedSchools.length} schools.`);
+    const handlePublish = async () => {
+        if (!currentCourseId) {
+            toast.error("Course ID not found.");
+            return;
+        }
+        setPublishingLoading(true);
+        try {
+            await publishCourse({
+                course_id: Number(currentCourseId),
+                is_published: true,
+                visibility_level: 'public'
+            });
+            toast.success('Course Published successfully');
 
             // Redirect to dashboard with filters applied
             const params = new URLSearchParams();
@@ -404,9 +478,10 @@ const EditCoursePage = () => {
                 navigate(`/admin/mappings/view?${params.toString()}`);
             }, 1500);
         } catch (err) {
-            toast.error('Failed to publish course.');
+            console.error("Publish error:", err);
+            toast.error("Failed to publish course.");
         } finally {
-            setLoading(false);
+            setPublishingLoading(false);
         }
     };
 
@@ -453,17 +528,17 @@ const EditCoursePage = () => {
                             </button>
                         )}
                         <button
-                            onClick={step === 1 ? handleSaveCourseDetails : step === 2 ? () => setStep(3) : handleApplyMapping}
-                            disabled={loading || (step === 1 && !isStep1MandatoryFilled)}
+                            onClick={step === 1 ? handleSaveCourseDetails : step === 2 ? () => setStep(3) : handlePublish}
+                            disabled={loading || publishingLoading || (step === 1 && !isStep1MandatoryFilled)}
                             style={{
                                 padding: '10px 48px',
                                 background: (step === 1 && !isStep1MandatoryFilled) ? '#94a3b8' : '#2563eb',
                                 color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '14px',
-                                cursor: loading || (step === 1 && !isStep1MandatoryFilled) ? 'not-allowed' : 'pointer',
-                                opacity: loading ? 0.7 : 1
+                                cursor: loading || publishingLoading || (step === 1 && !isStep1MandatoryFilled) ? 'not-allowed' : 'pointer',
+                                opacity: loading || publishingLoading ? 0.7 : 1
                             }}
                         >
-                            {loading ? 'Saving...' : step === 1 ? 'Save & Next' : step === 2 ? 'Next' : 'Publish Course'}
+                            {publishingLoading ? 'Processing...' : step === 1 ? 'Save & Next' : step === 2 ? 'Next' : 'Publish Course'}
                         </button>
                     </div>
                 </div>
@@ -878,8 +953,8 @@ const EditCoursePage = () => {
                                 <div style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                                     Mapped <span style={{ fontSize: '18px', fontWeight: '600', color: '#64748b' }}>({mappedSchools.length})</span>
                                     <div style={{ flex: 1 }}></div>
-                                    <button onClick={handleApplyMapping} disabled={loading} style={{ padding: '8px 16px', background: mappedSchools.length > 0 ? '#2563eb' : '#bfdbfe', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '700', cursor: mappedSchools.length > 0 ? 'pointer' : 'default' }}>
-                                        {loading ? 'Processing...' : 'Publish Course'}
+                                    <button onClick={handleApplyMapping} disabled={mappingLoading} style={{ padding: '8px 16px', background: (mappedSchools.length > 0 && !mappingLoading) ? '#2563eb' : '#bfdbfe', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '700', cursor: (mappedSchools.length > 0 && !mappingLoading) ? 'pointer' : 'default' }}>
+                                        {mappingLoading ? 'Processing...' : 'Apply Mapping'}
                                     </button>
                                 </div>
                                 <input type="text" placeholder="Search by school name..." value={mappedSearch} onChange={(e) => setMappedSearch(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }} />

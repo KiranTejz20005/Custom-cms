@@ -68,6 +68,8 @@ const NewCoursePage = () => {
     const [categories, setCategories] = useState([]);
     const [selectedCategory, setSelectedCategory] = useState('');
     const [loading, setLoading] = useState(false);
+    const [mappingLoading, setMappingLoading] = useState(false);
+    const [publishingLoading, setPublishingLoading] = useState(false);
 
     // Step 2: Chapters State
     const [items, setItems] = useState([]);
@@ -541,7 +543,7 @@ const NewCoursePage = () => {
             return;
         }
 
-        setLoading(true);
+        setMappingLoading(true);
         try {
             // Logic: For each school in mappedSchools and each selectedUserType, create/update mapping
             const mappingPromises = [];
@@ -586,32 +588,12 @@ const NewCoursePage = () => {
 
             await Promise.all(mappingPromises);
 
-            // Also mark the course as published
-            try {
-                await publishCourse({
-                    course_id: Number(currentCourseId),
-                    is_published: true,
-                    visibility_level: 'public'
-                });
-            } catch (publishErr) {
-                console.error("Failed to publish course visibility:", publishErr);
-            }
-
-            toast.success(`Published and mapped to ${mappedSchools.length} schools.`);
-
-            // Redirect to dashboard with filters applied
-            const params = new URLSearchParams();
-            params.set('assetType', 'course');
-            params.set('search', courseName);
-
-            setTimeout(() => {
-                navigate(`/admin/mappings/view?${params.toString()}`);
-            }, 1500);
+            toast.success(`Mapping applied successfully to ${mappedSchools.length} schools.`);
         } catch (err) {
-            console.error("Failed to publish course:", err);
-            toast.error("An error occurred while publishing course.");
+            console.error("Failed to apply mapping:", err);
+            toast.error("An error occurred while applying mapping.");
         } finally {
-            setLoading(false);
+            setMappingLoading(false);
         }
     };
 
@@ -640,7 +622,7 @@ const NewCoursePage = () => {
             toast.error("Create a course first.");
             return;
         }
-        setLoading(true);
+        setPublishingLoading(true);
         try {
             await publishCourse({
                 course_id: Number(currentCourseId),
@@ -648,12 +630,20 @@ const NewCoursePage = () => {
                 visibility_level: 'public'
             });
             toast.success('Course Published successfully');
-            navigate('/admin/mappings/view?assetType=course');
+
+            // Redirect to dashboard with filters applied
+            const params = new URLSearchParams();
+            params.set('assetType', 'course');
+            params.set('search', courseName);
+
+            setTimeout(() => {
+                navigate(`/admin/mappings/view?${params.toString()}`);
+            }, 1500);
         } catch (err) {
             console.error("Publish error:", err);
             toast.error("Failed to publish course.");
         } finally {
-            setLoading(false);
+            setPublishingLoading(false);
         }
     };
 
@@ -760,8 +750,8 @@ const NewCoursePage = () => {
                             </button>
                         )}
                         <button
-                            onClick={step === 3 ? handleApplyMapping : handleNext}
-                            disabled={loading || (step === 1 && !isStep1MandatoryFilled)}
+                            onClick={step === 3 ? handlePublish : handleNext}
+                            disabled={loading || publishingLoading || (step === 1 && !isStep1MandatoryFilled)}
                             style={{
                                 padding: '10px 48px',
                                 background: (step === 1 && !isStep1MandatoryFilled) ? '#94a3b8' : '#2563eb',
@@ -770,12 +760,12 @@ const NewCoursePage = () => {
                                 borderRadius: '6px',
                                 fontWeight: '700',
                                 fontSize: '14px',
-                                cursor: loading || (step === 1 && !isStep1MandatoryFilled) ? 'not-allowed' : 'pointer',
-                                opacity: loading ? 0.7 : 1,
+                                cursor: loading || publishingLoading || (step === 1 && !isStep1MandatoryFilled) ? 'not-allowed' : 'pointer',
+                                opacity: loading || publishingLoading ? 0.7 : 1,
                                 minWidth: '120px'
                             }}
                         >
-                            {loading ? 'Processing...' : (step === 3 ? 'Publish Course' : 'Next')}
+                            {publishingLoading ? 'Processing...' : (step === 3 ? 'Publish Course' : 'Next')}
                         </button>
                     </div>
                 </div>
@@ -1759,19 +1749,19 @@ const NewCoursePage = () => {
                                     <div style={{ flex: 1 }}></div>
                                     <button
                                         onClick={handleApplyMapping}
-                                        disabled={loading}
+                                        disabled={mappingLoading}
                                         style={{
                                             padding: '8px 16px',
-                                            background: (mappedSchools.length > 0 && !loading) ? '#2563eb' : '#bfdbfe',
+                                            background: (mappedSchools.length > 0 && !mappingLoading) ? '#2563eb' : '#bfdbfe',
                                             color: 'white',
                                             border: 'none',
                                             borderRadius: '6px',
                                             fontSize: '13px',
                                             fontWeight: '700',
-                                            cursor: (mappedSchools.length > 0 && !loading) ? 'pointer' : 'default'
+                                            cursor: (mappedSchools.length > 0 && !mappingLoading) ? 'pointer' : 'default'
                                         }}
                                     >
-                                        {loading ? 'Processing...' : 'Publish Course'}
+                                        {mappingLoading ? 'Processing...' : 'Apply Mapping'}
                                     </button>
                                 </div>
                                 <input

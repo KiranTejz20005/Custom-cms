@@ -31,6 +31,7 @@ export const createStudent = async (body) => client.post(members.createStudent, 
 
 // Asset Endpoints (Courses Base)
 export const getCourses = () => client.get(courses.getAllCourses);
+export const getCourseById = (id) => client.get(`${config.xano.coursesBaseUrl}/get_course/${id}`);
 export const getWorkshops = () => client.get(courses.getAllWorkshops);
 export const getBooks = () => client.get(courses.getAllBooks);
 export const getByteCategories = () => client.get(courses.getAllByteCategories);
