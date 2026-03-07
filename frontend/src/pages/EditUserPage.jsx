@@ -792,7 +792,7 @@ const EditUserPage = () => {
           padding: 8px 16px; background: #ffffff; color: #374151;
           border: 1px solid #d1d5db; border-radius: 6px;
           font-size: 14px; font-weight: 600; cursor: pointer;
-          transition: all 0.15s;
+          transition: all 0.15s; pointer-events: all !important;
         }
         .cu-btn-outline:hover, .btn-reset:hover { background: #f9fafb; }
         .cu-form-body { background: transparent; }

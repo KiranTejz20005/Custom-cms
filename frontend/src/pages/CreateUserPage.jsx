@@ -417,10 +417,17 @@ const CreateUserPage = () => {
                                     <span style={{ color: '#9ca3af', fontWeight: '500', fontSize: '15px' }}>Map &amp; Publish</span>
                                     */}
                                 </div>
-                                <div style={{ display: 'flex', gap: '8px', zIndex: 1 }}>
-                                    <button className="cu-btn-outline" onClick={handleReset}>Reset</button>
+                                <div style={{ display: 'flex', gap: '8px', zIndex: 10, position: 'relative', pointerEvents: 'all' }}>
+                                    <button
+                                        type="button"
+                                        onClick={handleReset}
+                                        style={{ cursor: 'pointer' }}
+                                        className="btn-reset"
+                                    >
+                                        Reset
+                                    </button>
                                     <button className="cu-btn-primary" onClick={handleNext} disabled={saving}>
-                                        {saving ? <><Loader2 size={16} className="animate-spin" /> Saving...</> : 'Next'}
+                                        {saving ? <><Loader2 size={16} className="animate-spin" /> Creating...</> : 'Create'}
                                     </button>
                                 </div>
                             </div>
@@ -1170,6 +1177,13 @@ const CreateUserPage = () => {
           padding-top: 8px; border-top: 1px solid #f1f5f9;
           font-size: 13px; color: #64748b; font-weight: 500;
         }
+        .btn-reset {
+          padding: 8px 16px; background: #ffffff; color: #374151;
+          border: 1px solid #d1d5db; border-radius: 6px;
+          font-size: 14px; font-weight: 600; cursor: pointer;
+          transition: all 0.15s; pointer-events: all !important;
+        }
+        .btn-reset:hover { background: #f9fafb; }
       `}} />
             {toast && (
                 <div style={{
