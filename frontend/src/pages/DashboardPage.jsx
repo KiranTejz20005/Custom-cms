@@ -532,7 +532,7 @@ const DashboardPage = () => {
     const totalPages = Math.ceil(total / limit) || 1;
 
     return (
-        <Layout title="Mapped Assets Dashboard">
+        <Layout title="Courses">
             <div className="dashboard-content">
 
                 <header className="dashboard-header animate-fade-in" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '32px' }}>
