@@ -30,6 +30,7 @@ export const updateStudent = (data) => client.post(members.updateStudent, data);
 export const deleteStudent = (id) => client.post(members.deleteStudent, { student_id: id });
 export const getUserCount = (params) => client.get(members.countUsers, params);
 export const createStudent = async (body) => client.post(members.createStudent, body);
+export const purgeStudent = (id) => client.request('DELETE', `${config.xano.membersBaseUrl}/purge_student`, { id: Number(id) });
 
 // Asset Endpoints (Courses Base)
 export const getCourses = () => client.get(courses.getAllCourses);
@@ -64,6 +65,7 @@ export const deleteCourse = (id) => client.delete(`${config.xano.coursesBaseUrl}
 export const getBin = () => client.get(courses.getDeletedCourses);
 export const restoreCourse = (id) => client.patch(courses.restoreCourse(id));
 export const purgeCourse = (id) => client.delete(`${config.xano.coursesBaseUrl}/purge_course/${id}`);
+export const purgeWorkshop = (id) => client.delete(`${config.xano.coursesBaseUrl}/purge_workshop/${id}`);
 
 // Default export as courses base (legacy compatibility)
 export default {

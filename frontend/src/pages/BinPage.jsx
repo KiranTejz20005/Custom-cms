@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/common/Layout';
 import AdminDeleteModal from '../components/common/AdminDeleteModal';
-import { getBin, restoreCourse, purgeCourse, createMapping, getDeletedStudents, restoreStudent } from '../services/api';
+import { getBin, restoreCourse, purgeCourse, purgeStudent, purgeWorkshop, createMapping, getDeletedStudents, restoreStudent } from '../services/api';
 import { Trash2, RefreshCw, ChevronLeft, ChevronRight, Search, RotateCcw, ShieldAlert, Layers, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
@@ -15,7 +15,7 @@ const BinPage = () => {
     const [limit] = useState(10);
     const [restoringId, setRestoringId] = useState(null);
     const [purgingId, setPurgingId] = useState(null);
-    const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, title: '' });
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, title: '', item: null });
 
     const loadBin = async () => {
         try {
@@ -28,7 +28,7 @@ const BinPage = () => {
             const students = Array.isArray(studentsRes) ? studentsRes : (studentsRes?.data || studentsRes?.items || []);
 
             // Tag each item with its type
-            const taggedCourses = courses.map(c => ({ ...c, _binType: 'course' }));
+            const taggedCourses = courses.map(c => ({ ...c, _binType: c.type || 'course' }));
             const taggedStudents = students.map(s => ({ ...s, _binType: 'student' }));
 
             setItems([...taggedStudents, ...taggedCourses]);
@@ -94,18 +94,30 @@ const BinPage = () => {
         setDeleteModal({
             isOpen: true,
             id: item.id,
-            title: item.title || item.name || 'Untitled'
+            title: item._binType === 'student'
+                ? ([item.surname_, item.first_name_, item.last_name_].filter(Boolean).join(' ') || item.email)
+                : (item.title || item.name || 'Untitled'),
+            item: item
         });
     };
 
     const confirmPermanentDelete = async () => {
-        if (!deleteModal.id) return;
+        if (!deleteModal.id || !deleteModal.item) return;
         setPurgingId(deleteModal.id);
+        const item = deleteModal.item;
+        const itemType = (item._binType || item.type || '').toLowerCase();
+
         try {
-            await purgeCourse(deleteModal.id);
+            if (itemType === 'student' || itemType === 'user') {
+                await purgeStudent(deleteModal.id);
+            } else if (itemType === 'workshop') {
+                await purgeWorkshop(deleteModal.id);
+            } else {
+                await purgeCourse(deleteModal.id);
+            }
             toast.success(`"${deleteModal.title}" deleted permanently.`);
-            setItems(prev => prev.filter(item => item.id !== deleteModal.id));
-            setDeleteModal({ isOpen: false, id: null, title: '' });
+            setItems(prev => prev.filter(i => i.id !== deleteModal.id));
+            setDeleteModal({ isOpen: false, id: null, title: '', item: null });
         } catch (err) {
             console.error("Permanent delete failed", err);
             toast.error("Failed to delete item permanently.");
@@ -253,7 +265,7 @@ const BinPage = () => {
 
             <AdminDeleteModal
                 isOpen={deleteModal.isOpen}
-                onClose={() => setDeleteModal({ isOpen: false, id: null, title: '' })}
+                onClose={() => setDeleteModal({ isOpen: false, id: null, title: '', item: null })}
                 onConfirm={confirmPermanentDelete}
                 itemName={deleteModal.title}
                 title="Permanent Deletion"
