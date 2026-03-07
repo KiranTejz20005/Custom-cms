@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import {
     getCategories, getCourses, getCourseById, addChapter, createQuiz,
-    updateCourseVisibility, getSchools, getGrades, getMappings,
+    updateCourseVisibility, publishCourse, getSchools, getGrades, getMappings,
     updateChapter, updateQuiz, deleteChapter, deleteQuiz, updateChapterOrder,
     createMapping, updateCourse, getCourseChapters
 } from '../services/api';
@@ -138,8 +138,8 @@ const EditCoursePage = () => {
                         id: ch.id,
                         type: ch.type || 'chapter',
                         title: ch.title || '',
-                        content: ch.body_content || '',
-                        youtube_url: ch.youtube_url || '',
+                        content: ch.body_content || ch.text_content || '',
+                        youtube_url: ch.youtube_url || ch.video_url || '',
                         order: ch.sequence_order || 0
                     }));
 
@@ -160,24 +160,40 @@ const EditCoursePage = () => {
                         order: qz.sequence_order || 0
                     }));
 
-                    const combinedItems = [...loadedChapters, ...loadedQuizzes].sort((a, b) => (a.order || 0) - (b.order || 0));
+                    const combinedItems = [...loadedChapters, ...loadedQuizzes]
+                        .sort((a, b) => {
+                            // Items with order 0 or null go to the end
+                            const aOrder = a.order || 999;
+                            const bOrder = b.order || 999;
+                            return aOrder - bOrder;
+                        });
                     setItems(combinedItems);
                     if (combinedItems.length > 0) {
                         setActiveItem(combinedItems[0]);
                     }
 
-                    // --- NEW: Pre-select User Types from existing mappings ---
+                    // --- NEW: Pre-select User Types and Grades from existing mappings ---
                     if (mappingsData.length > 0) {
-                        const courseMappings = mappingsData.filter(m => String(m.course_id ?? m.content_id) === String(id));
+                        const courseMappings = mappingsData.filter(m =>
+                            String(m.course_id ?? m.content_id) === String(id)
+                        );
+
+                        // Pre-select user types
                         const existingTypes = [...new Set(courseMappings.map(m => {
-                            const t = m.subscription_type || '';
-                            if (t.toLowerCase() === 'premium') return 'Premium';
-                            if (t.toLowerCase() === 'ultra') return 'Ultra';
+                            const t = (m.subscription_type || '').toLowerCase();
+                            if (t === 'premium') return 'Premium';
+                            if (t === 'ultra') return 'Ultra';
+                            if (t === 'school') return 'School';
                             return '';
                         }))].filter(Boolean);
-                        if (existingTypes.length > 0) {
-                            setSelectedUserTypes(existingTypes);
-                        }
+                        if (existingTypes.length > 0) setSelectedUserTypes(existingTypes);
+
+                        // Pre-select grades from existing mappings
+                        const allGradeIds = courseMappings.flatMap(m =>
+                            Array.isArray(m.grade_ids) ? m.grade_ids.map(Number) : []
+                        );
+                        const uniqueGradeIds = [...new Set(allGradeIds)];
+                        if (uniqueGradeIds.length > 0) setSelectedGradeIds(uniqueGradeIds);
                     }
                 } else {
                     toast.error('Course not found.');
@@ -339,7 +355,7 @@ const EditCoursePage = () => {
                     course_id: Number(currentCourseId),
                     chapter_id: null,
                     title: 'Untitled Quiz',
-                    sequence_order: 0,
+                    sequence_order: items.length + 1,
                     questions: []
                 });
                 newItemId = res?.quiz?.id || res?.id || res?.quiz_id;
@@ -395,7 +411,12 @@ const EditCoursePage = () => {
 
         try {
             setLoading(true);
-            await updateChapter(activeItem.id, { title: activeItem.title, body_content: activeItem.content, youtube_url: activeItem.youtube_url });
+            await updateChapter(activeItem.id, {
+                title: activeItem.title,
+                body_content: activeItem.content,
+                youtube_url: activeItem.youtube_url,
+                video_url: activeItem.youtube_url
+            });
             toast.success('Chapter saved.');
         } catch (err) {
             toast.error('Failed to save chapter.');
@@ -1145,6 +1166,89 @@ const EditCoursePage = () => {
                                 </div>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Preview Course Modal */}
+                {showPreviewModal && (
+                    <div style={{ position: 'fixed', inset: 0, zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.5)', padding: '24px', boxSizing: 'border-box' }} onClick={() => setShowPreviewModal(false)}>
+                        <div style={{ background: '#fff', borderRadius: '12px', maxWidth: '640px', width: '100%', maxHeight: '90vh', overflow: 'auto', boxShadow: '0 20px 60px rgba(0,0,0,0.2)', position: 'relative' }} onClick={e => e.stopPropagation()}>
+                            <div style={{ padding: '24px', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '800', color: '#1e293b' }}>Preview Course</h2>
+                                <button type="button" onClick={() => setShowPreviewModal(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '8px', color: '#64748b' }}><X size={24} /></button>
+                            </div>
+                            <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                {/* Course Details */}
+                                <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '16px' }}>Course Details</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 140px) 1fr', gap: '16px 12px', fontSize: '14px', alignItems: 'start' }}>
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Course name:</div>
+                                        <div style={{ color: '#1e293b', fontWeight: '600' }}>{courseName || '—'}</div>
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Category:</div>
+                                        <div style={{ color: '#1e293b' }}>{selectedCategory || '—'}</div>
+
+                                        {headerImage && (
+                                            <>
+                                                <div style={{ fontWeight: '600', color: '#475569', marginTop: '4px' }}>Header image:</div>
+                                                <div><img src={headerImage} alt="Header" style={{ maxWidth: '100%', maxHeight: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }} /></div>
+                                            </>
+                                        )}
+                                        {thumbnail && (
+                                            <>
+                                                <div style={{ fontWeight: '600', color: '#475569', marginTop: '4px' }}>Thumbnail:</div>
+                                                <div><img src={thumbnail} alt="Thumbnail" style={{ maxWidth: '140px', maxHeight: '100px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }} /></div>
+                                            </>
+                                        )}
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Video URL:</div>
+                                        <div style={{ color: '#2563eb', wordBreak: 'break-all' }}>{youtubeUrl ? <a href={youtubeUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>{youtubeUrl}</a> : '—'}</div>
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Description:</div>
+                                        <div style={{ whiteSpace: 'pre-wrap', color: '#334155', background: '#f1f5f9', padding: '16px', borderRadius: '8px', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2e8f0', lineHeight: '1.6' }}>{(courseDescription || '—')}</div>
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Instructors:</div>
+                                        <div style={{ color: '#1e293b' }}>{selectedInstructors.length ? selectedInstructors.map(i => i.name).join(', ') : '—'}</div>
+                                    </div>
+                                </div>
+                                {/* Chapters */}
+                                <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '16px' }}>Chapters & Quizzes</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
+                                        {items.length === 0 ? <span style={{ color: '#94a3b8' }}>No chapters or quizzes added</span> : items.map((item, idx) => (
+                                            <div key={`${item.type}-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', padding: '10px 16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                                <span style={{ color: '#64748b', fontWeight: '600', minWidth: '24px' }}>{idx + 1}.</span>
+                                                <span style={{ background: item.type === 'quiz' ? '#eff6ff' : '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: '#475569', fontWeight: '600', textTransform: 'capitalize' }}>{item.type}</span>
+                                                <span style={{ fontWeight: '600', color: '#1e293b' }}>{item.title || 'Untitled'}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                                {/* Map & Publish */}
+                                <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '16px' }}>Map & Publish</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 140px) 1fr', gap: '16px 12px', fontSize: '14px', alignItems: 'start' }}>
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Grades:</div>
+                                        <div style={{ color: '#1e293b' }}>{selectedGradeIds.length === 0 ? '—' : grades.length > 0 && selectedGradeIds.length === grades.length ? 'All grades' : grades.filter(g => selectedGradeIds.includes(g.id)).map(g => g.name || `Grade ${g.id}`).join(', ')}</div>
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>User types:</div>
+                                        <div style={{ color: '#1e293b' }}>{selectedUserTypes.length ? selectedUserTypes.join(', ') : '—'}</div>
+
+                                        {selectedUserTypes.includes('School') && (
+                                            <>
+                                                <div style={{ fontWeight: '600', color: '#475569' }}>Mapped schools:</div>
+                                                <div style={{ color: '#1e293b' }}>{mappedSchools.length} school{mappedSchools.length !== 1 ? 's' : ''} {mappedSchools.length > 0 && mappedSchools.slice(0, 5).map(s => s.name).join(', ')}{mappedSchools.length > 5 ? ` and ${mappedSchools.length - 5} more` : ''}</div>
+                                                <div style={{ fontWeight: '600', color: '#475569' }}>Unmapped schools:</div>
+                                                <div style={{ color: '#1e293b' }}>{unmappedSchools.length} school{unmappedSchools.length !== 1 ? 's' : ''}</div>
+                                            </>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                            <div style={{ padding: '16px 24px', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                                <button type="button" onClick={() => setShowPreviewModal(false)} style={{ padding: '10px 24px', background: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '14px', cursor: 'pointer' }}>Close</button>
+                            </div>
+                        </div>
                     </div>
                 )}
 

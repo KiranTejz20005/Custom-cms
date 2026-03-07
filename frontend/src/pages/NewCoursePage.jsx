@@ -1952,38 +1952,68 @@ const NewCoursePage = () => {
                             <div style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
                                 {/* Course Details */}
                                 <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
-                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>Course Details</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px' }}>
-                                        <div><strong>Course name:</strong> {courseName || '—'}</div>
-                                        <div><strong>Category:</strong> {selectedCategory || '—'}</div>
-                                        {headerImage && <div><strong>Header image:</strong> <img src={headerImage} alt="Header" style={{ maxWidth: '200px', maxHeight: '80px', objectFit: 'cover', borderRadius: '6px', marginTop: '4px' }} /></div>}
-                                        {thumbnail && <div><strong>Thumbnail:</strong> <img src={thumbnail} alt="Thumbnail" style={{ maxWidth: '120px', maxHeight: '80px', objectFit: 'cover', borderRadius: '6px', marginTop: '4px' }} /></div>}
-                                        <div><strong>Video URL:</strong> {youtubeUrl || '—'}</div>
-                                        <div><strong>Description:</strong> <span style={{ whiteSpace: 'pre-wrap' }}>{(courseDescription || '—').slice(0, 200)}{(courseDescription || '').length > 200 ? '...' : ''}</span></div>
-                                        <div><strong>Instructors:</strong> {selectedInstructors.length ? selectedInstructors.map(i => i.name).join(', ') : '—'}</div>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '16px' }}>Course Details</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 140px) 1fr', gap: '16px 12px', fontSize: '14px', alignItems: 'start' }}>
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Course name:</div>
+                                        <div style={{ color: '#1e293b', fontWeight: '600' }}>{courseName || '—'}</div>
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Category:</div>
+                                        <div style={{ color: '#1e293b' }}>{selectedCategory || '—'}</div>
+
+                                        {headerImage && (
+                                            <>
+                                                <div style={{ fontWeight: '600', color: '#475569', marginTop: '4px' }}>Header image:</div>
+                                                <div><img src={headerImage} alt="Header" style={{ maxWidth: '100%', maxHeight: '120px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }} /></div>
+                                            </>
+                                        )}
+                                        {thumbnail && (
+                                            <>
+                                                <div style={{ fontWeight: '600', color: '#475569', marginTop: '4px' }}>Thumbnail:</div>
+                                                <div><img src={thumbnail} alt="Thumbnail" style={{ maxWidth: '140px', maxHeight: '100px', objectFit: 'cover', borderRadius: '8px', border: '1px solid #e2e8f0' }} /></div>
+                                            </>
+                                        )}
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Video URL:</div>
+                                        <div style={{ color: '#2563eb', wordBreak: 'break-all' }}>{youtubeUrl ? <a href={youtubeUrl} target="_blank" rel="noreferrer" style={{ color: '#2563eb', textDecoration: 'none' }}>{youtubeUrl}</a> : '—'}</div>
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Description:</div>
+                                        <div style={{ whiteSpace: 'pre-wrap', color: '#334155', background: '#f1f5f9', padding: '16px', borderRadius: '8px', maxHeight: '160px', overflowY: 'auto', border: '1px solid #e2e8f0', lineHeight: '1.6' }}>{(courseDescription || '—')}</div>
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Instructors:</div>
+                                        <div style={{ color: '#1e293b' }}>{selectedInstructors.length ? selectedInstructors.map(i => i.name).join(', ') : '—'}</div>
                                     </div>
                                 </div>
                                 {/* Chapters */}
                                 <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
-                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>Chapters & Quizzes</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '14px' }}>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '16px' }}>Chapters & Quizzes</div>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '14px' }}>
                                         {items.length === 0 ? <span style={{ color: '#94a3b8' }}>No chapters or quizzes added</span> : items.map((item, idx) => (
-                                            <div key={`${item.type}-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <div key={`${item.type}-${item.id}`} style={{ display: 'flex', alignItems: 'center', gap: '12px', background: 'white', padding: '10px 16px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
                                                 <span style={{ color: '#64748b', fontWeight: '600', minWidth: '24px' }}>{idx + 1}.</span>
-                                                <span style={{ background: item.type === 'quiz' ? '#eff6ff' : '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: '#475569' }}>{item.type === 'quiz' ? 'Quiz' : (item.type === 'chapter' ? 'Chapter' : item.type)}</span>
-                                                <span>{item.title || 'Untitled'}</span>
+                                                <span style={{ background: item.type === 'quiz' ? '#eff6ff' : '#f1f5f9', padding: '4px 8px', borderRadius: '4px', fontSize: '12px', color: '#475569', fontWeight: '600', textTransform: 'capitalize' }}>{item.type}</span>
+                                                <span style={{ fontWeight: '600', color: '#1e293b' }}>{item.title || 'Untitled'}</span>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                                 {/* Map & Publish */}
                                 <div style={{ background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', padding: '16px' }}>
-                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '12px' }}>Map & Publish</div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', fontSize: '14px' }}>
-                                        <div><strong>Grades:</strong> {selectedGradeIds.length === 0 ? '—' : grades.length > 0 && selectedGradeIds.length === grades.length ? 'All grades' : grades.filter(g => selectedGradeIds.includes(g.id)).map(g => g.name || `Grade ${g.id}`).join(', ')}</div>
-                                        <div><strong>User types:</strong> {selectedUserTypes.length ? selectedUserTypes.join(', ') : '—'}</div>
-                                        <div><strong>Mapped schools:</strong> {mappedSchools.length} school{mappedSchools.length !== 1 ? 's' : ''} {mappedSchools.length > 0 && mappedSchools.slice(0, 5).map(s => s.name).join(', ')}{mappedSchools.length > 5 ? ` and ${mappedSchools.length - 5} more` : ''}</div>
-                                        <div><strong>Unmapped schools:</strong> {unmappedSchools.length} school{unmappedSchools.length !== 1 ? 's' : ''}</div>
+                                    <div style={{ fontSize: '14px', fontWeight: '700', color: '#64748b', marginBottom: '16px' }}>Map & Publish</div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(120px, 140px) 1fr', gap: '16px 12px', fontSize: '14px', alignItems: 'start' }}>
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>Grades:</div>
+                                        <div style={{ color: '#1e293b' }}>{selectedGradeIds.length === 0 ? '—' : grades.length > 0 && selectedGradeIds.length === grades.length ? 'All grades' : grades.filter(g => selectedGradeIds.includes(g.id)).map(g => g.name || `Grade ${g.id}`).join(', ')}</div>
+
+                                        <div style={{ fontWeight: '600', color: '#475569' }}>User types:</div>
+                                        <div style={{ color: '#1e293b' }}>{selectedUserTypes.length ? selectedUserTypes.join(', ') : '—'}</div>
+
+                                        {selectedUserTypes.includes('School') && (
+                                            <>
+                                                <div style={{ fontWeight: '600', color: '#475569' }}>Mapped schools:</div>
+                                                <div style={{ color: '#1e293b' }}>{mappedSchools.length} school{mappedSchools.length !== 1 ? 's' : ''} {mappedSchools.length > 0 && mappedSchools.slice(0, 5).map(s => s.name).join(', ')}{mappedSchools.length > 5 ? ` and ${mappedSchools.length - 5} more` : ''}</div>
+                                                <div style={{ fontWeight: '600', color: '#475569' }}>Unmapped schools:</div>
+                                                <div style={{ color: '#1e293b' }}>{unmappedSchools.length} school{unmappedSchools.length !== 1 ? 's' : ''}</div>
+                                            </>
+                                        )}
                                     </div>
                                 </div>
                             </div>

@@ -4,7 +4,7 @@ const getEnv = (key, defaultValue = null) => {
     return import.meta.env[key] || defaultValue;
 };
 
-const DEFAULT_XANO_BASE_URL = 'https://x8ki-letl-twmt.n7.xano.io/api:j1bkW6GC';
+const DEFAULT_XANO_BASE_URL = 'https://x7y2-rprs-bzvu.n7e.xano.io/api:j1bkW6GC';
 
 const XANO_BASE_URL = getEnv('VITE_XANO_BASE_URL', DEFAULT_XANO_BASE_URL);
 const XANO_MEMBERS_BASE_URL = getEnv('VITE_XANO_MEMBERS_BASE_URL') || 'https://x8ki-letl-twmt.n7.xano.io/api:dwhFu4S5';
