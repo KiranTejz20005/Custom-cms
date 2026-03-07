@@ -13,6 +13,7 @@ export const XANO_COURSES_BASE_URL = getEnv('VITE_XANO_COURSES_BASE_URL', DEFAUL
 const XANO_API_KEY = getEnv('VITE_XANO_API_KEY');
 const RAW_HTTP_TIMEOUT = Number(getEnv('VITE_HTTP_TIMEOUT_MS', 30000));
 const HTTP_TIMEOUT_MS = Number.isFinite(RAW_HTTP_TIMEOUT) && RAW_HTTP_TIMEOUT > 0 ? RAW_HTTP_TIMEOUT : 30000;
+const ADMIN_PASSKEY = import.meta.env.VITE_ADMIN_PASSKEY || 'admin123';
 
 const endpoints = {
     members: {
@@ -61,6 +62,7 @@ const config = {
         coursesBaseUrl: XANO_COURSES_BASE_URL,
         membersBaseUrl: XANO_MEMBERS_BASE_URL,
         apiKey: XANO_API_KEY,
+        adminPasskey: ADMIN_PASSKEY,
     },
     endpoints,
     http: {

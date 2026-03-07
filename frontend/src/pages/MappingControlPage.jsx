@@ -6,6 +6,7 @@ import Modal from '../components/common/Modal';
 import AdminDeleteModal from '../components/common/AdminDeleteModal';
 import AssetPicker from '../components/mapping/AssetPicker';
 import { createMapping, getMappingById, updateMapping, getMappings, getSchools, getGrades, getUserCount } from '../services/api';
+import toast from 'react-hot-toast';
 
 const MappingControlPage = ({ mode }) => {
   const navigate = useNavigate();
@@ -1027,7 +1028,12 @@ const MappingControlPage = ({ mode }) => {
             isOpen={showDeleteModal}
             onClose={() => setShowDeleteModal(false)}
             onConfirm={() => {
-              if (assetToDelete) handleAssetToggle(assetToDelete);
+              if (assetToDelete) {
+                const assetName = assetToDelete?.title || assetToDelete?.name;
+                const assetType = assetToDelete?.isExisting ? (pickerType === 'Workshops' || assetToDelete.type === 'Workshops' ? 'Workshop' : 'Course') : 'Selection';
+                handleAssetToggle(assetToDelete);
+                toast.success(`${assetType} "${assetName}" moved to bin.`);
+              }
               setShowDeleteModal(false);
             }}
             itemName={assetToDelete?.title || assetToDelete?.name}

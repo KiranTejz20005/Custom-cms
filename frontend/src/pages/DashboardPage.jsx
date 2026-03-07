@@ -6,6 +6,7 @@ import Modal from '../components/common/Modal';
 import AdminDeleteModal from '../components/common/AdminDeleteModal';
 import { getMappings, deleteMapping, deleteCourse, getSchools, getGrades, getCourses } from '../services/api';
 import { ChevronDown, Plus, Search, Filter, RefreshCw, ChevronLeft, ChevronRight, Download, Users, School, Layers } from 'lucide-react';
+import toast from 'react-hot-toast';
 
 const DashboardPage = () => {
     const navigate = useNavigate();
@@ -19,7 +20,6 @@ const DashboardPage = () => {
     const [fetchError, setFetchError] = useState(null);
     const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, title: '' });
     const [deletingId, setDeletingId] = useState(null);
-    const [toast, setToast] = useState(null);
 
     const [filters, setFilters] = useState({
         search: '',
@@ -299,6 +299,15 @@ const DashboardPage = () => {
                 return (Number(b.id) || 0) - (Number(a.id) || 0);
             });
 
+            // Deduplicate by course content_id — keep only one row per course
+            const seen = new Set();
+            rows = rows.filter(r => {
+                const courseId = r.content_id || r.course_id || r.id;
+                if (seen.has(String(courseId))) return false;
+                seen.add(String(courseId));
+                return true;
+            });
+
             setData(rows);
             setTotal(res?.total || rows.length);
         } catch (err) {
@@ -319,11 +328,7 @@ const DashboardPage = () => {
         }
     }, [page, filters.assetType]);
 
-    useEffect(() => {
-        if (!toast) return undefined;
-        const timeout = setTimeout(() => setToast(null), 3000);
-        return () => clearTimeout(timeout);
-    }, [toast]);
+
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -376,13 +381,13 @@ const DashboardPage = () => {
             }));
             setTotal(prev => Math.max(0, prev - 1));
 
-            setToast({ type: 'success', message: 'Course deleted successfully.' });
+            toast.success('Course moved to bin successfully.');
             setDeleteModal({ isOpen: false, id: null, title: '' });
 
             // Reload fresh data from server
             await loadData();
         } catch (err) {
-            setToast({ type: 'error', message: err.message || 'Failed to delete course.' });
+            toast.error(err.message || 'Failed to delete course.');
         } finally {
             setDeletingId(null);
         }
@@ -820,11 +825,7 @@ const DashboardPage = () => {
 
 
 
-                {toast && (
-                    <div className={`action-toast ${toast.type === 'error' ? 'error' : 'success'}`}>
-                        {toast.message}
-                    </div>
-                )}
+
 
                 {fetchError && (
                     <div style={{
@@ -909,7 +910,7 @@ const DashboardPage = () => {
                 }}
                 onConfirm={confirmDelete}
                 itemName={deleteModal.title}
-                type={searchParams.get('assetType') === 'workshop' ? 'Workshop' : 'Course'}
+                type={((searchParams.get('assetType') || 'Course').charAt(0).toUpperCase() + (searchParams.get('assetType') || 'Course').slice(1))}
             />
 
             <style dangerouslySetInnerHTML={{

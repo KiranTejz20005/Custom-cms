@@ -9,13 +9,13 @@ import NewCoursePage from './pages/NewCoursePage';
 import CreateUserPage from './pages/CreateUserPage';
 import EditUserPage from './pages/EditUserPage';
 import EditCoursePage from './pages/EditCoursePage';
-import BinPage from './pages/BinPage';
+import BinPage from './pages/BinPage.jsx';
 import { Toaster } from 'react-hot-toast';
 
 function App() {
   return (
     <ErrorBoundary>
-      <Toaster position="top-right" />
+      <Toaster position="top-right" toastOptions={{ duration: 3000 }} />
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Navigate to="/admin/mappings/view" replace />} />

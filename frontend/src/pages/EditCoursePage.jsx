@@ -810,14 +810,32 @@ const EditCoursePage = () => {
                                             <th style={{ padding: '12px', width: '40px' }}></th>
                                             <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Name</th>
                                             <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>School ID</th>
+                                            <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Location</th>
                                             <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>City</th>
                                         </tr></thead>
                                         <tbody>
+                                            <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f1f5f9' }}>
+                                                <td style={{ padding: '12px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={unmappedSchools.length > 0 && selectedUnmappedIds.length === unmappedSchools.length}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedUnmappedIds(unmappedSchools.map(s => s.id));
+                                                            } else {
+                                                                setSelectedUnmappedIds([]);
+                                                            }
+                                                        }}
+                                                    />
+                                                </td>
+                                                <td colSpan="4" style={{ padding: '12px', fontWeight: '700', color: '#1e293b' }}>All Schools</td>
+                                            </tr>
                                             {unmappedSchools.filter(s => s.name.toLowerCase().includes(unmappedSearch.toLowerCase())).map(s => (
                                                 <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                                     <td style={{ padding: '12px' }}><input type="checkbox" checked={selectedUnmappedIds.includes(s.id)} onChange={(e) => { if (e.target.checked) setSelectedUnmappedIds([...selectedUnmappedIds, s.id]); else setSelectedUnmappedIds(selectedUnmappedIds.filter(id => id !== s.id)); }} /></td>
                                                     <td style={{ padding: '12px', fontWeight: '600' }}>{s.name}</td>
                                                     <td style={{ padding: '12px', color: '#1e293b' }}>#{s.id}</td>
+                                                    <td style={{ padding: '12px', color: '#1e293b' }}>{s.location || s.area || '—'}</td>
                                                     <td style={{ padding: '12px', color: '#1e293b' }}>{s.city || '—'}</td>
                                                 </tr>
                                             ))}
@@ -851,16 +869,36 @@ const EditCoursePage = () => {
                                             <th style={{ padding: '12px', width: '40px' }}></th>
                                             <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Name</th>
                                             <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>School ID</th>
+                                            <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>Location</th>
                                             <th style={{ textAlign: 'left', padding: '12px', color: '#64748b', fontWeight: '600' }}>City</th>
                                         </tr></thead>
                                         <tbody>
+                                            {mappedSchools.length > 0 && (
+                                                <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f1f5f9' }}>
+                                                    <td style={{ padding: '12px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={mappedSchools.length > 0 && selectedMappedIds.length === mappedSchools.length}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedMappedIds(mappedSchools.map(s => s.id));
+                                                                } else {
+                                                                    setSelectedMappedIds([]);
+                                                                }
+                                                            }}
+                                                        />
+                                                    </td>
+                                                    <td colSpan="4" style={{ padding: '12px', fontWeight: '700', color: '#1e293b' }}>All Schools</td>
+                                                </tr>
+                                            )}
                                             {mappedSchools.length === 0 ? (
-                                                <tr><td colSpan="4" style={{ textAlign: 'center', padding: '100px 0', color: '#94a3b8', fontSize: '14px' }}>No Mapped Items</td></tr>
+                                                <tr><td colSpan="5" style={{ textAlign: 'center', padding: '100px 0', color: '#94a3b8', fontSize: '14px' }}>No Mapped Items</td></tr>
                                             ) : mappedSchools.filter(s => s.name.toLowerCase().includes(mappedSearch.toLowerCase())).map(s => (
                                                 <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
                                                     <td style={{ padding: '12px' }}><input type="checkbox" checked={selectedMappedIds.includes(s.id)} onChange={(e) => { if (e.target.checked) setSelectedMappedIds([...selectedMappedIds, s.id]); else setSelectedMappedIds(selectedMappedIds.filter(id => id !== s.id)); }} /></td>
                                                     <td style={{ padding: '12px', fontWeight: '600' }}>{s.name}</td>
                                                     <td style={{ padding: '12px', color: '#1e293b' }}>#{s.id}</td>
+                                                    <td style={{ padding: '12px', color: '#1e293b' }}>{s.location || s.area || '—'}</td>
                                                     <td style={{ padding: '12px', color: '#1e293b' }}>{s.city || '—'}</td>
                                                 </tr>
                                             ))}

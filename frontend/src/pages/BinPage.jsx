@@ -37,7 +37,7 @@ const BinPage = () => {
         try {
             setRestoringId(id);
             await restoreCourse(id);
-            toast.success("Item restored successfully!");
+            toast.success(`"${items.find(i => i.id === id)?.title || 'Item'}" restored successfully.`);
             setItems(prev => prev.filter(item => item.id !== id));
         } catch (err) {
             console.error("Restore failed", err);

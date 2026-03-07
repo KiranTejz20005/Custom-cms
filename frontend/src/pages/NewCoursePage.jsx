@@ -1688,9 +1688,21 @@ const NewCoursePage = () => {
                                             </tr>
                                         </thead>
                                         <tbody style={{ background: '#f8fafc' }}>
-                                            <tr style={{ borderBottom: '1px solid #f1f5f9' }}>
-                                                <td style={{ padding: '12px' }}></td>
-                                                <td colSpan="4" style={{ padding: '12px', fontWeight: '600' }}>All Schools</td>
+                                            <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f1f5f9' }}>
+                                                <td style={{ padding: '12px' }}>
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={unmappedSchools.length > 0 && selectedUnmappedIds.length === unmappedSchools.length}
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedUnmappedIds(unmappedSchools.map(s => s.id));
+                                                            } else {
+                                                                setSelectedUnmappedIds([]);
+                                                            }
+                                                        }}
+                                                    />
+                                                </td>
+                                                <td colSpan="4" style={{ padding: '12px', fontWeight: '700', color: '#1e293b' }}>All Schools</td>
                                             </tr>
                                             {unmappedSchools.filter(s => s.name.toLowerCase().includes(unmappedSearch.toLowerCase())).map(s => (
                                                 <tr key={s.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -1792,6 +1804,24 @@ const NewCoursePage = () => {
                                             </tr>
                                         </thead>
                                         <tbody style={{ background: '#f8fafc' }}>
+                                            {mappedSchools.length > 0 && (
+                                                <tr style={{ borderBottom: '1px solid #f1f5f9', background: '#f1f5f9' }}>
+                                                    <td style={{ padding: '12px' }}>
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={mappedSchools.length > 0 && selectedMappedIds.length === mappedSchools.length}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedMappedIds(mappedSchools.map(s => s.id));
+                                                                } else {
+                                                                    setSelectedMappedIds([]);
+                                                                }
+                                                            }}
+                                                        />
+                                                    </td>
+                                                    <td colSpan="4" style={{ padding: '12px', fontWeight: '700', color: '#1e293b' }}>All Schools</td>
+                                                </tr>
+                                            )}
                                             {mappedSchools.length === 0 ? (
                                                 <tr>
                                                     <td colSpan="5" style={{ textAlign: 'center', padding: '100px 0', color: '#94a3b8', fontSize: '14px' }}>No Mapped Items</td>

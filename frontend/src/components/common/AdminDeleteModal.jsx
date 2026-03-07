@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { X, AlertTriangle, Trash2 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import config from '../../config/config';
 
 const AdminDeleteModal = ({ isOpen, onClose, onConfirm, itemName, type = 'Course' }) => {
     const [passkey, setPasskey] = useState('');
@@ -8,13 +10,17 @@ const AdminDeleteModal = ({ isOpen, onClose, onConfirm, itemName, type = 'Course
     if (!isOpen) return null;
 
     const handleConfirm = () => {
-        const correctPasskey = import.meta.env.VITE_ADMIN_PASSKEY || 'admin123';
-        if (passkey === correctPasskey) {
+        const correctPasskey = String(config.xano.adminPasskey || 'admin123').trim();
+        if (passkey.trim() === correctPasskey) {
             onConfirm();
             setPasskey('');
             setError('');
         } else {
             setError('Invalid admin passkey');
+            toast.error('Wrong password! Please try again.', {
+                id: 'admin-passkey-error',
+                duration: 3000,
+            });
         }
     };
 
