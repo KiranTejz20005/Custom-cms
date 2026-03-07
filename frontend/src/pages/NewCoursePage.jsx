@@ -586,33 +586,30 @@ const NewCoursePage = () => {
 
             await Promise.all(mappingPromises);
 
-            // Build the mappings we just created so UI stays correct even if refetch shape differs
-            const justCreated = mappedSchools.flatMap(school =>
-                selectedUserTypes.map(ut => ({
-                    course_id: currentCourseId,
-                    content_id: String(currentCourseId),
-                    content_type: 'course',
-                    school_id: Number(school.id),
-                    subscription_type: ut.toLowerCase(),
-                    grade_ids: selectedGradeIds.map(Number)
-                }))
-            );
-
-            // Refresh from server and merge with what we just created so schools stay in Mapped
+            // Also mark the course as published
             try {
-                const res = await getMappings();
-                const fromServer = Array.isArray(res) ? res : (res?.data ?? res?.items ?? res?.records ?? []);
-                const existingIds = new Set((fromServer || []).map(m => `${m.course_id ?? m.content_id}-${m.school_id}-${(m.subscription_type || '').toLowerCase()}`));
-                const newOnes = justCreated.filter(m => !existingIds.has(`${m.course_id}-${m.school_id}-${m.subscription_type}`));
-                setMappings([...(fromServer || []), ...newOnes]);
-            } catch (e) {
-                setMappings(prev => [...(prev || []), ...justCreated]);
+                await publishCourse({
+                    course_id: Number(currentCourseId),
+                    is_published: true,
+                    visibility_level: 'public'
+                });
+            } catch (publishErr) {
+                console.error("Failed to publish course visibility:", publishErr);
             }
 
-            toast.success(`Successfully mapped to ${mappedSchools.length} schools.`);
+            toast.success(`Published and mapped to ${mappedSchools.length} schools.`);
+
+            // Redirect to dashboard with filters applied
+            const params = new URLSearchParams();
+            params.set('assetType', 'course');
+            params.set('search', courseName);
+
+            setTimeout(() => {
+                navigate(`/admin/mappings/view?${params.toString()}`);
+            }, 1500);
         } catch (err) {
-            console.error("Failed to apply mapping:", err);
-            toast.error("An error occurred while applying mapping.");
+            console.error("Failed to publish course:", err);
+            toast.error("An error occurred while publishing course.");
         } finally {
             setLoading(false);
         }
@@ -763,7 +760,7 @@ const NewCoursePage = () => {
                             </button>
                         )}
                         <button
-                            onClick={step === 3 ? handlePublish : handleNext}
+                            onClick={step === 3 ? handleApplyMapping : handleNext}
                             disabled={loading || (step === 1 && !isStep1MandatoryFilled)}
                             style={{
                                 padding: '10px 48px',
@@ -1774,7 +1771,7 @@ const NewCoursePage = () => {
                                             cursor: (mappedSchools.length > 0 && !loading) ? 'pointer' : 'default'
                                         }}
                                     >
-                                        {loading ? 'Processing...' : 'Apply Mapping'}
+                                        {loading ? 'Processing...' : 'Publish Course'}
                                     </button>
                                 </div>
                                 <input

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import MappingTable from '../components/dashboard/MappingTable';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
@@ -11,6 +11,7 @@ import toast from 'react-hot-toast';
 const DashboardPage = () => {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
+    const location = useLocation();
 
     const [loading, setLoading] = useState(true);
     const [data, setData] = useState([]);
@@ -22,13 +23,23 @@ const DashboardPage = () => {
     const [deletingId, setDeletingId] = useState(null);
 
     const [filters, setFilters] = useState({
-        search: '',
+        search: searchParams.get('search') || '',
         assetType: searchParams.get('assetType') || '',
-        category: ['All'],
-        userType: '',
-        gradeIds: [],
-        schoolIds: []
+        category: searchParams.get('category') ? searchParams.get('category').split(',') : ['All'],
+        userType: searchParams.get('userType') || '',
+        gradeIds: searchParams.get('gradeIds') ? searchParams.get('gradeIds').split(',').map(Number) : [],
+        schoolIds: searchParams.get('schoolIds') ? searchParams.get('schoolIds').split(',').map(Number) : []
     });
+
+    // Auto-pre-fill search from URL and submit
+    useEffect(() => {
+        const params = new URLSearchParams(location.search);
+        const searchParam = params.get('search');
+        if (searchParam) {
+            setFilters(prev => ({ ...prev, search: searchParam }));
+            setHasSubmitted(true);
+        }
+    }, [location.search]);
 
     const [schools, setSchools] = useState([]);
     const [grades, setGrades] = useState([]);
@@ -40,7 +51,7 @@ const DashboardPage = () => {
     const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
     const [isAssetDropdownOpen, setIsAssetDropdownOpen] = useState(false);
 
-    const [hasSubmitted, setHasSubmitted] = useState(false);
+    const [hasSubmitted, setHasSubmitted] = useState(!!searchParams.get('search'));
 
     const schoolDropdownRef = React.useRef(null);
     const gradeDropdownRef = React.useRef(null);
@@ -92,17 +103,28 @@ const DashboardPage = () => {
     // Update internal state if URL changes
     useEffect(() => {
         const urlType = searchParams.get('assetType') || '';
-        if (urlType !== filters.assetType) {
-            setFilters({
-                search: '',
-                assetType: urlType,
-                category: '',
-                userType: '',
-                gradeIds: [],
-                schoolIds: []
-            });
+        const urlSearch = searchParams.get('search') || '';
+        const urlCategory = searchParams.get('category') ? searchParams.get('category').split(',') : ['All'];
+        const urlUserType = searchParams.get('userType') || '';
+        const urlGradeIds = searchParams.get('gradeIds') ? searchParams.get('gradeIds').split(',').map(Number) : [];
+        const urlSchoolIds = searchParams.get('schoolIds') ? searchParams.get('schoolIds').split(',').map(Number) : [];
+
+        setFilters({
+            search: urlSearch,
+            assetType: urlType,
+            category: urlCategory,
+            userType: urlUserType,
+            gradeIds: urlGradeIds,
+            schoolIds: urlSchoolIds
+        });
+
+        const isUrlFormComplete = urlType && urlUserType && (urlUserType.toLowerCase() !== 'school' || urlSchoolIds.length > 0) && urlGradeIds.length > 0;
+
+        if (urlSearch || isUrlFormComplete) {
+            setHasSubmitted(true);
+        } else {
             setHasSubmitted(false);
-            setData([]); // Clear data eagerly so there's no UI flash
+            setData([]); // Clear data if filters are reset or incomplete
         }
     }, [searchParams]);
 
@@ -191,6 +213,10 @@ const DashboardPage = () => {
     const isSchoolUserType = String(filters.userType || '').toLowerCase() === 'school';
 
     const loadData = async () => {
+        if (!hasSubmitted && !filters.search) {
+            setLoading(false);
+            return;
+        }
         setLoading(true);
         setFetchError(null);
         try {
@@ -267,8 +293,8 @@ const DashboardPage = () => {
                     const rowSchoolIds = getRowSchoolIds(r);
                     // Match 'all' or specific types like 'premium', 'ultra', 'school'
                     if (fType === 'school') return rowSchoolIds.length > 0 || rType === 'school';
-                    if (fType === 'premium') return rType === 'premium' && rowSchoolIds.length === 0;
-                    if (fType === 'ultra') return rType === 'ultra' && rowSchoolIds.length === 0;
+                    if (fType === 'premium') return rType === 'premium';
+                    if (fType === 'ultra') return rType === 'ultra';
                     return rType.includes(fType);
                 });
             }
@@ -320,15 +346,10 @@ const DashboardPage = () => {
     };
 
     useEffect(() => {
-        // Do not auto-fetch on filter changes; only on mount (to clear data if needed) and page changes
-        // But since the requirement states "No Data should be shown without selecting all filters"
-        // we keep data empty until user clicks submit.
         if (hasSubmitted) {
             loadData();
         }
-    }, [page, filters.assetType]);
-
-
+    }, [page, filters.assetType, hasSubmitted]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -355,6 +376,17 @@ const DashboardPage = () => {
 
     const handleSubmit = () => {
         if (!isFormComplete) return;
+
+        // Sync filters to URL
+        const params = new URLSearchParams();
+        if (filters.assetType) params.set('assetType', filters.assetType);
+        if (filters.search) params.set('search', filters.search);
+        if (filters.userType) params.set('userType', filters.userType);
+        if (filters.gradeIds.length) params.set('gradeIds', filters.gradeIds.join(','));
+        if (filters.schoolIds.length) params.set('schoolIds', filters.schoolIds.join(','));
+        if (filters.category.length && !filters.category.includes('All')) params.set('category', filters.category.join(','));
+
+        setSearchParams(params);
         setHasSubmitted(true);
         loadData();
     };
@@ -787,6 +819,9 @@ const DashboardPage = () => {
                                         schoolIds: []
                                     });
                                     setHasSubmitted(false);
+                                    setData([]);
+                                    const assetType = searchParams.get('assetType');
+                                    setSearchParams(assetType ? { assetType } : {});
                                 }}
                             >Reset</button>
                         </div>

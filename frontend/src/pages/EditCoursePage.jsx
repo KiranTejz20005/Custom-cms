@@ -381,9 +381,30 @@ const EditCoursePage = () => {
                 }
             }
             await Promise.all(promises);
-            toast.success(`Mapped to ${mappedSchools.length} schools.`);
+
+            // Also mark the course as published
+            try {
+                await publishCourse({
+                    course_id: Number(currentCourseId),
+                    is_published: true,
+                    visibility_level: 'public'
+                });
+            } catch (publishErr) {
+                console.error("Failed to publish course visibility:", publishErr);
+            }
+
+            toast.success(`Published and mapped to ${mappedSchools.length} schools.`);
+
+            // Redirect to dashboard with filters applied
+            const params = new URLSearchParams();
+            params.set('assetType', 'course');
+            params.set('search', courseName);
+
+            setTimeout(() => {
+                navigate(`/admin/mappings/view?${params.toString()}`);
+            }, 1500);
         } catch (err) {
-            toast.error('Failed to apply mapping.');
+            toast.error('Failed to publish course.');
         } finally {
             setLoading(false);
         }
@@ -442,7 +463,7 @@ const EditCoursePage = () => {
                                 opacity: loading ? 0.7 : 1
                             }}
                         >
-                            {loading ? 'Saving...' : step === 1 ? 'Save & Next' : step === 2 ? 'Next' : 'Apply Mapping'}
+                            {loading ? 'Saving...' : step === 1 ? 'Save & Next' : step === 2 ? 'Next' : 'Publish Course'}
                         </button>
                     </div>
                 </div>
@@ -858,7 +879,7 @@ const EditCoursePage = () => {
                                     Mapped <span style={{ fontSize: '18px', fontWeight: '600', color: '#64748b' }}>({mappedSchools.length})</span>
                                     <div style={{ flex: 1 }}></div>
                                     <button onClick={handleApplyMapping} disabled={loading} style={{ padding: '8px 16px', background: mappedSchools.length > 0 ? '#2563eb' : '#bfdbfe', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '700', cursor: mappedSchools.length > 0 ? 'pointer' : 'default' }}>
-                                        {loading ? 'Processing...' : 'Apply Mapping'}
+                                        {loading ? 'Processing...' : 'Publish Course'}
                                     </button>
                                 </div>
                                 <input type="text" placeholder="Search by school name..." value={mappedSearch} onChange={(e) => setMappedSearch(e.target.value)} style={{ width: '100%', padding: '12px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', outline: 'none', fontSize: '14px' }} />
