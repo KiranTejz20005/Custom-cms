@@ -101,7 +101,9 @@ const UsersPage = () => {
         const [sRes, gRes] = await Promise.all([getSchools(), getGrades()]);
         setSchools(Array.isArray(sRes) ? sRes : (sRes.data || []));
         const gData = Array.isArray(gRes) ? gRes : (gRes.data || []);
-        setGrades([...gData].sort((a, b) => Number(a.id) - Number(b.id)));
+        const gradeData = [...gData].sort((a, b) => Number(a.id) - Number(b.id));
+        setGrades(gradeData);
+        setSelectedGrades(gradeData.map(g => g.id));
       } catch (err) {
         console.error("Failed to fetch metadata", err);
       }
@@ -192,10 +194,14 @@ const UsersPage = () => {
     );
   };
   const toggleAllGrades = () => {
-    setSelectedGrades([]);
+    if (selectedGrades.length === grades.length) {
+      setSelectedGrades([]);
+    } else {
+      setSelectedGrades(grades.map(g => g.id));
+    }
   };
   const gradesButtonLabel = () => {
-    if (selectedGrades.length === 0) return 'All';
+    if (selectedGrades.length === 0 || selectedGrades.length === grades.length) return 'All';
     if (selectedGrades.length <= 2) {
       return selectedGrades.map(id => {
         const g = grades.find(gr => gr.id === id);
@@ -399,7 +405,7 @@ const UsersPage = () => {
           {isGradesDropdownOpen && (
             <div className="up-grades-dropdown">
               <label className="up-grades-item up-grades-all">
-                <input type="checkbox" checked={selectedGrades.length === 0} onChange={toggleAllGrades} />
+                <input type="checkbox" checked={selectedGrades.length === grades.length && grades.length > 0} onChange={toggleAllGrades} />
                 <span>All Grades</span>
               </label>
               <div className="up-grades-divider" />
@@ -540,7 +546,10 @@ const UsersPage = () => {
                         onClick={() => navigate(`/admin/config/users/${user.id}`)}
                         style={{ color: '#2563eb', cursor: 'pointer', fontWeight: 500 }}
                       >
-                        {getDisplayName(user)}
+                        {(() => {
+                          const displayName = [user.surname_, user.first_name_, user.last_name_].filter(Boolean).join(' ') || user.name || 'Unknown';
+                          return displayName;
+                        })()}
                       </span>
                     </td>
                   )}

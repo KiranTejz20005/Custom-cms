@@ -23,39 +23,11 @@ export const getGrades = async () => {
 export const getSchools = () => client.get(members.getAllSchools);
 export const getUsers = () => client.get(members.getAllUsers);
 export const updateUser = (id, data) => client.post(members.updateUser(id), data);
-export const deleteUser = async (id) => {
-    const response = await fetch(members.deleteStudent, {
-        method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ student_id: id }),
-    });
-    if (!response.ok) {
-        const text = await response.text();
-        const err = text ? JSON.parse(text) : {};
-        throw new Error(err.message || 'Delete failed');
-    }
-    const text = await response.text();
-    return text ? JSON.parse(text) : {};
-};
+export const deleteUser = async (id) => client.request('DELETE', members.deleteStudent, { student_id: id });
 export const updateStudent = (data) => client.post(members.updateStudent, data);
 export const deleteStudent = (id) => client.post(members.deleteStudent, { student_id: id });
 export const getUserCount = (params) => client.get(members.countUsers, params);
-export const createStudent = async (body) => {
-    const response = await fetch(
-        config.endpoints.members.createStudent,
-        {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body)
-        }
-    );
-    const text = await response.text();
-    const data = text ? JSON.parse(text) : {};
-    if (!response.ok) {
-        throw new Error(data?.message || data?.error || `Error ${response.status}`);
-    }
-    return data;
-};
+export const createStudent = async (body) => client.post(members.createStudent, body);
 
 // Asset Endpoints (Courses Base)
 export const getCourses = () => client.get(courses.getAllCourses);

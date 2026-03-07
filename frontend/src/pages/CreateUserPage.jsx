@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, Loader2, Plus, Trash2, Upload, Search, Check, Layers, ChevronDown } from 'lucide-react';
 import Layout from '../components/common/Layout';
 import Modal from '../components/common/Modal';
-import { getGrades, getSchools, getCourses, getWorkshops, createStudent, getUsers } from '../services/api';
+import { getGrades, getSchools, getCourses, getWorkshops, getMappings, createStudent, getUsers } from '../services/api';
 import AssetPicker from '../components/mapping/AssetPicker';
 
 const STEPS = ['Student Details', 'Map & Publish'];
@@ -56,6 +56,15 @@ const CreateUserPage = () => {
     const [mappingApplied, setMappingApplied] = useState(false);
     const [pickerType, setPickerType] = useState(null);
     const [showAssetPicker, setShowAssetPicker] = useState(false);
+    const [existingMappedCourses, setExistingMappedCourses] = useState([]);
+    const [existingMappedWorkshops, setExistingMappedWorkshops] = useState([]);
+
+    // Redirect to step 1 if refreshed on step 2 (state is lost)
+    useEffect(() => {
+        if (step === 2 && !createdStudent) {
+            setStep(1);
+        }
+    }, []);
 
     // Fetch meta on mount
     useEffect(() => {
@@ -70,26 +79,92 @@ const CreateUserPage = () => {
         load();
     }, []);
 
-    // Fetch courses & workshops when entering step 2
+    // Fetch courses & workshops and existing mappings when entering step 2
     useEffect(() => {
         if (step !== 2) return;
         const fetchAssets = async () => {
             setLoadingAssets(true);
             try {
-                const [cRes, wRes] = await Promise.all([getCourses(), getWorkshops()]);
+                const [cRes, wRes, mappingsRes] = await Promise.all([getCourses(), getWorkshops(), getMappings()]);
                 const extract = (r) => Array.isArray(r) ? r : (r?.items || r?.data || r?.results || []);
                 setCourses(extract(cRes));
                 setWorkshops(extract(wRes));
+
+                const mappings = Array.isArray(mappingsRes) ? mappingsRes : (mappingsRes?.items || mappingsRes?.data || []);
+                const normalizeGrades = (ids) => (Array.isArray(ids) ? ids : ids != null ? [ids] : []).map(Number);
+                const normalizeNum = (val) => {
+                    if (val == null) return null;
+                    if (typeof val === 'object') {
+                        const n = Number(val.id ?? val.school_id ?? null);
+                        return Number.isFinite(n) ? n : null;
+                    }
+                    const n = Number(val);
+                    return Number.isFinite(n) ? n : null;
+                };
+
+                const selectedSchoolIds = schoolId ? [Number(schoolId)] : [];
+
+                const matched = mappings.filter(m => {
+                    const entitlementSchool = normalizeNum(m?.school ?? m?.school_id) || 0;
+                    const subscription = (m?.subscription_type || '').toLowerCase();
+                    const userSub = (subscriptionType || '').toLowerCase();
+
+                    // Grade match
+                    const mGrades = normalizeGrades(m.grade_ids ?? m.grade_id);
+                    if (!mGrades.includes(Number(gradeId))) return false;
+
+                    // Subscription match (mirrors AssetPicker exactly)
+                    if (userSub === 'school') {
+                        if (entitlementSchool <= 0) return false;
+                        if (!(subscription === 'premium' || subscription === 'school' || subscription === '')) return false;
+                    } else if (userSub === 'all' || userSub === '') {
+                        if (entitlementSchool > 0) return false;
+                        if (subscription) return false;
+                    } else {
+                        if (subscription !== userSub) return false;
+                    }
+
+                    // School match (mirrors AssetPicker exactly)
+                    if (selectedSchoolIds.length > 0) {
+                        if (!selectedSchoolIds.includes(entitlementSchool)) return false;
+                    } else if (entitlementSchool > 0) {
+                        return false;
+                    }
+
+                    return true;
+                });
+                const mappedCourses = matched
+                    .filter(m => (m.content_type || '').toLowerCase() === 'course')
+                    .map(m => ({
+                        id: m.content_id,
+                        title: m.content_title || m.content_id,
+                        category: m.category || '—',
+                        mappedAt: m.created_at || Date.now(),
+                        isExisting: true,
+                    }));
+                const mappedWorkshops = matched
+                    .filter(m => (m.content_type || '').toLowerCase() === 'workshop')
+                    .map(m => ({
+                        id: m.content_id,
+                        title: m.content_title || m.content_id,
+                        category: m.category || '—',
+                        mappedAt: m.created_at || Date.now(),
+                        isExisting: true,
+                    }));
+                setExistingMappedCourses(mappedCourses);
+                setExistingMappedWorkshops(mappedWorkshops);
             } catch (e) { console.error('Failed loading assets', e); }
             finally { setLoadingAssets(false); }
         };
         fetchAssets();
-    }, [step]);
+    }, [step, gradeId, subscriptionType, schoolId]);
 
     /* ── Step 1 Validation ── */
     const validate = () => {
         const errs = {};
+        if (!surname.trim()) errs.surname = 'Surname is required';
         if (!firstName.trim()) errs.firstName = 'First Name is required';
+        if (!lastName.trim()) errs.lastName = 'Last Name is required';
         if (!email.trim()) errs.email = 'Email is required';
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Invalid email format';
         if (!subscriptionType) errs.subscriptionType = 'Subscription Type is required';
@@ -123,19 +198,14 @@ const CreateUserPage = () => {
             }
             const body = {
                 first_name_: firstName.trim(),
-                last_name_: lastName.trim() || '',
-                surname_: surname.trim() || '',
+                last_name_: (lastName || '').trim(),
+                surname_: (surname || '').trim(),
                 email: email.trim(),
                 password: 'Test@1234',
-                grade: Number(gradeId),
                 grade_level: Number(gradeId),
-                school: Number(schoolId) || 0,
-                school_id: Number(schoolId) || 0,
+                school_id: subscriptionType === 'school' ? Number(schoolId) : 0,
                 subscription_type: subscriptionType.toLowerCase(),
                 mobile: mobile,
-                mobile_: mobile,
-                parent_name: parentName.trim(),
-                address: address.trim()
             };
 
             const res = await createStudent(body);
@@ -352,8 +422,9 @@ const CreateUserPage = () => {
                                     {/* 3-column name row */}
                                     <div className="cu-name-row" style={{ marginBottom: 20 }}>
                                         <div>
-                                            <label className="cu-label">Surname</label>
-                                            <input className="cu-input" value={surname} onChange={e => setSurname(e.target.value)} />
+                                            <label className="cu-label">Surname*</label>
+                                            <input className={`cu-input ${errors.surname ? 'cu-input-err' : ''}`} value={surname} onChange={e => setSurname(e.target.value)} />
+                                            {errors.surname && <span className="cu-err">{errors.surname}</span>}
                                         </div>
                                         <div>
                                             <label className="cu-label">First Name*</label>
@@ -361,8 +432,9 @@ const CreateUserPage = () => {
                                             {errors.firstName && <span className="cu-err">{errors.firstName}</span>}
                                         </div>
                                         <div>
-                                            <label className="cu-label">Last Name</label>
-                                            <input className="cu-input" value={lastName} onChange={e => setLastName(e.target.value)} />
+                                            <label className="cu-label">Last Name*</label>
+                                            <input className={`cu-input ${errors.lastName ? 'cu-input-err' : ''}`} value={lastName} onChange={e => setLastName(e.target.value)} />
+                                            {errors.lastName && <span className="cu-err">{errors.lastName}</span>}
                                         </div>
                                     </div>
 
@@ -574,36 +646,53 @@ const CreateUserPage = () => {
                                                     </div>
                                                 </div>
                                                 <div className="row-content">
-                                                    {selectedCourses.length === 0 ? (
+                                                    {existingMappedCourses.length === 0 && selectedCourses.length === 0 ? (
                                                         <div className="empty-state">No courses selected yet. Click <strong>+ Add</strong> to select.</div>
                                                     ) : (
                                                         <div className="split-asset-tables">
-                                                            <div className="asset-sub-section">
-                                                                <table className="assets-table">
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th>#</th><th>COURSE NAME</th><th>CATEGORY</th><th>MAPPED DATE</th><th>ACTIONS</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {selectedCourses.map((c, i) => (
-                                                                            <tr key={c.id}>
-                                                                                <td className="row-num">{i + 1}</td>
-                                                                                <td className="asset-name-cell">{c.title || c.name}</td>
-                                                                                <td><span className="type-badge">{c.category || '—'}</span></td>
-                                                                                <td style={{ fontSize: '12px', color: '#64748b' }}>
-                                                                                    {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                                                </td>
-                                                                                <td>
-                                                                                    <button className="remove-row-btn bin-btn" onClick={() => removeCourse(c.id)} title="Remove">
-                                                                                        <Trash2 size={16} />
-                                                                                    </button>
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
+                                                            {existingMappedCourses.length > 0 && (
+                                                                <div className="asset-sub-section">
+                                                                    <h5 className="sub-section-title">Already Mapped</h5>
+                                                                    <table className="assets-table">
+                                                                        <thead><tr><th>#</th><th>COURSE NAME</th><th>CATEGORY</th><th>MAPPED DATE</th></tr></thead>
+                                                                        <tbody>
+                                                                            {existingMappedCourses.map((c, i) => (
+                                                                                <tr key={c.id}>
+                                                                                    <td className="row-num">{i + 1}</td>
+                                                                                    <td className="asset-name-cell">{c.title}</td>
+                                                                                    <td><span className="type-badge">{c.category}</span></td>
+                                                                                    <td style={{ fontSize: '12px', color: '#64748b' }}>
+                                                                                        {c.mappedAt ? new Date(c.mappedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            )}
+                                                            {selectedCourses.length > 0 && (
+                                                                <div className="asset-sub-section" style={{ marginTop: existingMappedCourses.length > 0 ? '24px' : '0' }}>
+                                                                    <h5 className="sub-section-title">Newly Selected</h5>
+                                                                    <table className="assets-table">
+                                                                        <thead><tr><th>#</th><th>COURSE NAME</th><th>CATEGORY</th><th>MAPPED DATE</th><th>ACTIONS</th></tr></thead>
+                                                                        <tbody>
+                                                                            {selectedCourses.map((c, i) => (
+                                                                                <tr key={c.id}>
+                                                                                    <td className="row-num">{i + 1}</td>
+                                                                                    <td className="asset-name-cell">{c.title || c.name}</td>
+                                                                                    <td><span className="type-badge">{c.category || '—'}</span></td>
+                                                                                    <td style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600' }}>Pending</td>
+                                                                                    <td>
+                                                                                        <button className="remove-row-btn bin-btn" onClick={() => removeCourse(c.id)} title="Remove">
+                                                                                            <Trash2 size={16} />
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -624,36 +713,53 @@ const CreateUserPage = () => {
                                                     </div>
                                                 </div>
                                                 <div className="row-content">
-                                                    {selectedWorkshops.length === 0 ? (
+                                                    {existingMappedWorkshops.length === 0 && selectedWorkshops.length === 0 ? (
                                                         <div className="empty-state">No workshops selected yet. Click <strong>+ Add</strong> to select.</div>
                                                     ) : (
                                                         <div className="split-asset-tables">
-                                                            <div className="asset-sub-section">
-                                                                <table className="assets-table">
-                                                                    <thead>
-                                                                        <tr>
-                                                                            <th>#</th><th>COURSE NAME</th><th>CATEGORY</th><th>MAPPED DATE</th><th>ACTIONS</th>
-                                                                        </tr>
-                                                                    </thead>
-                                                                    <tbody>
-                                                                        {selectedWorkshops.map((w, i) => (
-                                                                            <tr key={w.id}>
-                                                                                <td className="row-num">{i + 1}</td>
-                                                                                <td className="asset-name-cell">{w.title || w.name}</td>
-                                                                                <td><span className="type-badge">{w.category || '—'}</span></td>
-                                                                                <td style={{ fontSize: '12px', color: '#64748b' }}>
-                                                                                    {new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })}
-                                                                                </td>
-                                                                                <td>
-                                                                                    <button className="remove-row-btn bin-btn" onClick={() => removeWorkshop(w.id)} title="Remove">
-                                                                                        <Trash2 size={16} />
-                                                                                    </button>
-                                                                                </td>
-                                                                            </tr>
-                                                                        ))}
-                                                                    </tbody>
-                                                                </table>
-                                                            </div>
+                                                            {existingMappedWorkshops.length > 0 && (
+                                                                <div className="asset-sub-section">
+                                                                    <h5 className="sub-section-title">Already Mapped</h5>
+                                                                    <table className="assets-table">
+                                                                        <thead><tr><th>#</th><th>WORKSHOP NAME</th><th>CATEGORY</th><th>MAPPED DATE</th></tr></thead>
+                                                                        <tbody>
+                                                                            {existingMappedWorkshops.map((w, i) => (
+                                                                                <tr key={w.id}>
+                                                                                    <td className="row-num">{i + 1}</td>
+                                                                                    <td className="asset-name-cell">{w.title}</td>
+                                                                                    <td><span className="type-badge">{w.category}</span></td>
+                                                                                    <td style={{ fontSize: '12px', color: '#64748b' }}>
+                                                                                        {w.mappedAt ? new Date(w.mappedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : '—'}
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            )}
+                                                            {selectedWorkshops.length > 0 && (
+                                                                <div className="asset-sub-section" style={{ marginTop: existingMappedWorkshops.length > 0 ? '24px' : '0' }}>
+                                                                    <h5 className="sub-section-title">Newly Selected</h5>
+                                                                    <table className="assets-table">
+                                                                        <thead><tr><th>#</th><th>WORKSHOP NAME</th><th>CATEGORY</th><th>MAPPED DATE</th><th>ACTIONS</th></tr></thead>
+                                                                        <tbody>
+                                                                            {selectedWorkshops.map((w, i) => (
+                                                                                <tr key={w.id}>
+                                                                                    <td className="row-num">{i + 1}</td>
+                                                                                    <td className="asset-name-cell">{w.title || w.name}</td>
+                                                                                    <td><span className="type-badge">{w.category || '—'}</span></td>
+                                                                                    <td style={{ fontSize: '12px', color: '#3b82f6', fontWeight: '600' }}>Pending</td>
+                                                                                    <td>
+                                                                                        <button className="remove-row-btn bin-btn" onClick={() => removeWorkshop(w.id)} title="Remove">
+                                                                                            <Trash2 size={16} />
+                                                                                        </button>
+                                                                                    </td>
+                                                                                </tr>
+                                                                            ))}
+                                                                        </tbody>
+                                                                    </table>
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>
@@ -679,9 +785,10 @@ const CreateUserPage = () => {
                     selectedIds={pickerType === 'Courses' ? selectedCourses.map(c => c.id) : selectedWorkshops.map(w => w.id)}
                     selectedFilters={{
                         userType: subscriptionType === 'ultra' ? 'Ultra' :
-                            subscriptionType === 'premium' ? 'Premium' : 'School',
-                        gradeIds: [Number(gradeId)],
-                        schoolIds: schoolId ? [Number(schoolId)] : [],
+                            subscriptionType === 'premium' ? 'Premium' :
+                            subscriptionType === 'school' ? 'School' : '',
+                        gradeIds: gradeId ? [Number(gradeId)] : [],
+                        schoolIds: subscriptionType === 'school' && schoolId ? [Number(schoolId)] : [],
                         assignmentMode: 'User'
                     }}
                     schools={schools}
@@ -878,6 +985,14 @@ const CreateUserPage = () => {
         }
         .add-btn:hover { background: #bbf7d0; transform: scale(1.02); }
         .row-content { padding: 20px 24px; border-top: 1px solid #f1f5f9; }
+        .sub-section-title {
+          font-size: 13px; font-weight: 700; color: #64748b;
+          text-transform: uppercase; letter-spacing: 0.05em;
+          margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+        }
+        .sub-section-title::after {
+          content: ""; flex: 1; height: 1px; background: #e2e8f0;
+        }
         .empty-state {
           padding: 32px; text-align: center; color: #94a3b8; font-size: 14px;
           border: 2px dashed #e2e8f0; border-radius: 6px;
