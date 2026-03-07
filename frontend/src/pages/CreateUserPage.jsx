@@ -158,6 +158,8 @@ const CreateUserPage = () => {
         if (!surname.trim()) errs.surname = 'Surname is required';
         if (!firstName.trim()) errs.firstName = 'First Name is required';
         if (!lastName.trim()) errs.lastName = 'Last Name is required';
+        if (!mobile.trim()) errs.mobile = 'Mobile number is required';
+        else if (!/^\d{10}$/.test(mobile)) errs.mobile = 'Enter a valid 10-digit mobile number';
         if (!email.trim()) errs.email = 'Email is required';
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Invalid email format';
         if (!subscriptionType) errs.subscriptionType = 'Subscription Type is required';
@@ -178,7 +180,7 @@ const CreateUserPage = () => {
             const allUsers = Array.isArray(existingUsers?.data) ? existingUsers.data : (Array.isArray(existingUsers) ? existingUsers : []);
             const duplicate = allUsers.find(u =>
                 u.email?.toLowerCase() === email.toLowerCase() ||
-                (mobile && u.mobile && u.mobile === mobile)
+                (mobile && (u.mobile_ === mobile || u.mobile === mobile))
             );
             if (duplicate) {
                 if (duplicate.email?.toLowerCase() === email.toLowerCase()) {
@@ -427,7 +429,13 @@ const CreateUserPage = () => {
                                         <input
                                             className={`cu-input ${errors.mobile ? 'cu-input-err' : ''}`}
                                             value={mobile}
-                                            onChange={e => { setMobile(e.target.value); setErrors(prev => ({ ...prev, mobile: '' })); }}
+                                            onChange={e => {
+                                                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                                setMobile(val);
+                                                setErrors(prev => ({ ...prev, mobile: '' }));
+                                            }}
+                                            placeholder="10-digit mobile number"
+                                            maxLength={10}
                                         />
                                         {errors.mobile && <span className="cu-err">{errors.mobile}</span>}
                                     </div>
