@@ -124,8 +124,7 @@ const BinPage = () => {
                                         <th>Asset ID</th>
                                         <th>Title</th>
                                         <th>Category</th>
-                                        <th>Deleted On</th>
-                                        <th style={{ textAlign: 'right' }}>Actions</th>
+                                        <th style={{ textAlign: 'left' }}>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -333,12 +332,12 @@ const BinPage = () => {
                 }
 
                 .actions-cell {
-                    text-align: right;
+                    text-align: left;
                 }
 
                 .action-buttons-group {
                     display: flex;
-                    justify-content: flex-end;
+                    justify-content: flex-start;
                     gap: 12px;
                 }
 
