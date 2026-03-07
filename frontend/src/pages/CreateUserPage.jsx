@@ -199,6 +199,7 @@ const CreateUserPage = () => {
                 school_id: subscriptionType === 'school' ? Number(schoolId) : 0,
                 subscription_type: subscriptionType.toLowerCase(),
                 mobile: mobile,
+                mobile_: mobile,
             };
 
             const res = await createStudent(body);
@@ -268,46 +269,32 @@ const CreateUserPage = () => {
             const promises = [];
             for (const course of selectedCourses) {
                 promises.push(
-                    fetch(
-                        `${import.meta.env.VITE_XANO_COURSES_BASE_URL}/upsert_entitlement`,
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                type: subscriptionType === 'school' ? 'school' : 'subscription',
-                                content_id: course.id || course.content_id,
-                                content_type: 'course',
-                                content_title: course.title || course.content_title,
-                                subscription_type: subscriptionType,
-                                grade_ids: [Number(gradeId)],
-                                school: Number(schoolId) || 0,
-                                is_active: true,
-                                category: course.category || '',
-                            }),
-                        }
-                    )
+                    createMapping({
+                        type: subscriptionType === 'school' ? 'school' : 'subscription',
+                        content_id: String(course.id || course.content_id),
+                        content_type: 'course',
+                        content_title: course.title || course.content_title,
+                        subscription_type: subscriptionType,
+                        grade_ids: [Number(gradeId)],
+                        school_id: Number(schoolId) || 0,
+                        is_active: true,
+                        category: course.category || '',
+                    })
                 );
             }
             for (const ws of selectedWorkshops) {
                 promises.push(
-                    fetch(
-                        `${import.meta.env.VITE_XANO_COURSES_BASE_URL}/upsert_entitlement`,
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                type: subscriptionType === 'school' ? 'school' : 'subscription',
-                                content_id: ws.id || ws.content_id,
-                                content_type: 'workshop',
-                                content_title: ws.title || ws.content_title,
-                                subscription_type: subscriptionType,
-                                grade_ids: [Number(gradeId)],
-                                school: Number(schoolId) || 0,
-                                is_active: true,
-                                category: ws.category || '',
-                            }),
-                        }
-                    )
+                    createMapping({
+                        type: subscriptionType === 'school' ? 'school' : 'subscription',
+                        content_id: String(ws.id || ws.content_id),
+                        content_type: 'workshop',
+                        content_title: ws.title || ws.content_title,
+                        subscription_type: subscriptionType,
+                        grade_ids: [Number(gradeId)],
+                        school_id: Number(schoolId) || 0,
+                        is_active: true,
+                        category: ws.category || '',
+                    })
                 );
             }
             await Promise.all(promises);
@@ -779,7 +766,7 @@ const CreateUserPage = () => {
                     selectedFilters={{
                         userType: subscriptionType === 'ultra' ? 'Ultra' :
                             subscriptionType === 'premium' ? 'Premium' :
-                            subscriptionType === 'school' ? 'School' : '',
+                                subscriptionType === 'school' ? 'School' : '',
                         gradeIds: gradeId ? [Number(gradeId)] : [],
                         schoolIds: subscriptionType === 'school' && schoolId ? [Number(schoolId)] : [],
                         assignmentMode: 'User'
@@ -1014,6 +1001,14 @@ const CreateUserPage = () => {
         .cu-loading {
           display: flex; flex-direction: column; align-items: center;
           gap: 12px; padding: 60px 0; color: #94a3b8;
+        }
+        .sub-section-title {
+          font-size: 13px; font-weight: 700; color: #64748b;
+          text-transform: uppercase; letter-spacing: 0.05em;
+          margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+        }
+        .sub-section-title::after {
+          content: ""; flex: 1; height: 1px; background: #e2e8f0;
         }
 
         /* ── Picker Modal ── */
