@@ -252,32 +252,6 @@ const DashboardPage = () => {
                 return r;
             });
 
-            // Inject unmapped courses that don't have entitlements yet (e.g., restored from bin)
-            if (!filters.assetType || normalizeContentType(filters.assetType) === 'course') {
-                const mappedCourseIds = new Set(
-                    rows.filter(r => normalizeContentType(r.content_type || r.category) === 'course' || normalizeContentType(r.content_type) === 'course')
-                        .map(r => String(r.content_id || r.course_id || r.id))
-                );
-
-                courseList.forEach(course => {
-                    const cIdStr = String(course.id || course.course_id);
-                    if (!mappedCourseIds.has(cIdStr)) {
-                        rows.push({
-                            id: `unmapped-${cIdStr}`,
-                            content_id: cIdStr,
-                            content_type: 'course',
-                            content_title: course.title || course.name || course.title_A || 'Untitled',
-                            category: course.category || course.A_category || course.category_name || 'All',
-                            subscription_type: 'Unmapped',
-                            created_at: course.created_at,
-                            grade_ids: course.grades || course.grade_ids || [],
-                            school_id: 0,
-                        });
-                        mappedCourseIds.add(cIdStr);
-                    }
-                });
-            }
-
             // Categories are helper selections, not standalone mappings in dashboard.
             rows = rows.filter(r => normalizeContentType(r.content_type || r.category) !== 'category');
 
