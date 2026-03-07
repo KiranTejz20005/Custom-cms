@@ -50,7 +50,7 @@ const Layout = ({ children, title }) => {
                   const currentFull = location.pathname + location.search;
                   const isActive = item.path.includes('?')
                     ? currentFull === item.path
-                    : location.pathname === item.path || location.pathname.startsWith(item.path + '/');
+                    : currentFull === item.path || location.pathname.startsWith(item.path + '/');
 
                   return (
                     <button
