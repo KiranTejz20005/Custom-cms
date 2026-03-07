@@ -196,30 +196,22 @@ const EditUserPage = () => {
     const gradeName = grades.find(g => Number(g.id) === Number(gradeId))?.grade_name || grades.find(g => Number(g.id) === Number(gradeId))?.name || '';
 
     const handleReset = () => {
-        if (!originalDataRef.current) return;
-        const student = originalDataRef.current;
-        setSurname(student.surname_ || '');
-        setFirstName(student.first_name_ || '');
-        setLastName(student.last_name_ || '');
-        setMobile(student.mobile_ || '');
-        setEmail(student.email || '');
-        setSubscriptionType((student.subscription_type || '').toLowerCase());
-        const gradeVal = student.grade != null && typeof student.grade === 'object' ? student.grade?.id : student.grade;
-        const schoolVal = student.school != null && typeof student.school === 'object' ? student.school?.id : student.school;
-        setGradeId(String(gradeVal ?? ''));
-        setSchoolId(String(schoolVal ?? ''));
-        setParentName(student.parent_name || '');
-        setAddress(student.address || '');
-        setInstitution(student.institution || '');
-        if (student.profile_pic) {
-            setProfilePicPreview(student.profile_pic.url || student.profile_pic);
-        } else {
-            setProfilePicPreview(null);
-        }
+        setSurname('');
+        setFirstName('');
+        setLastName('');
+        setMobile('');
+        setEmail('');
+        setSubscriptionType('');
+        setGradeId('');
+        setSchoolId('');
+        setParentName('');
+        setAddress('');
+        setInstitution('');
+        setProfilePicPreview(null);
+        setErrors({});
         const profileInput = document.getElementById('profilePicInput');
         if (profileInput) profileInput.value = '';
-        setErrors({});
-        showToast('Form reset to original data.', 'success');
+        showToast('Form cleared.', 'success');
     };
 
     const handleOpenPicker = (type) => {
