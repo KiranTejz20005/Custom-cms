@@ -134,16 +134,38 @@ const EditUserPage = () => {
 
                 const mappings = Array.isArray(mappingsRes) ? mappingsRes : (mappingsRes?.items || mappingsRes?.data || []);
                 const normalizeGrades = (ids) => (Array.isArray(ids) ? ids : ids != null ? [ids] : []).map(Number);
+                const normalizeNum = (val) => {
+                    if (val == null) return null;
+                    if (typeof val === 'object') {
+                        const n = Number(val.id ?? val.school_id ?? null);
+                        return Number.isFinite(n) ? n : null;
+                    }
+                    const n = Number(val);
+                    return Number.isFinite(n) ? n : null;
+                };
+
+                const selectedSchoolIds = subscriptionType === 'school' && schoolId ? [Number(schoolId)] : [];
+
                 const matched = mappings.filter(m => {
+                    // Grade match
                     const mGrades = normalizeGrades(m.grade_ids ?? m.grade_id);
-                    const gradeMatch = mGrades.includes(Number(gradeId));
-                    const subType = (m.subscription_type || '').toLowerCase();
-                    const userSub = (subscriptionType || '').toLowerCase();
-                    const subMatch = subType === userSub || subType === '';
-                    const schoolMatch = subscriptionType === 'school'
-                        ? Number(m.school_id || 0) === Number(schoolId || 0)
-                        : Number(m.school_id || 0) === 0;
-                    return gradeMatch && subMatch && schoolMatch;
+                    if (!mGrades.includes(Number(gradeId))) return false;
+
+                    const entitlementSchool = normalizeNum(m?.school ?? m?.school_id) || 0;
+                    const subscription = (m?.subscription_type || '').toLowerCase();
+                    const userSub = subscriptionType.toLowerCase();
+
+                    if (userSub === 'school') {
+                        if (entitlementSchool <= 0) return false;
+                        if (!(subscription === 'premium' || subscription === 'school' || subscription === '')) return false;
+                        if (!selectedSchoolIds.includes(entitlementSchool)) return false;
+                    } else {
+                        // premium / ultra: exact subscription match, no school attached
+                        if (subscription !== userSub) return false;
+                        if (entitlementSchool > 0) return false;
+                    }
+
+                    return true;
                 });
                 const mappedCourses = matched
                     .filter(m => (m.content_type || '').toLowerCase() === 'course')

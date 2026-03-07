@@ -102,33 +102,26 @@ const CreateUserPage = () => {
                     return Number.isFinite(n) ? n : null;
                 };
 
-                const selectedSchoolIds = schoolId ? [Number(schoolId)] : [];
+                const selectedSchoolIds = subscriptionType === 'school' && schoolId ? [Number(schoolId)] : [];
 
                 const matched = mappings.filter(m => {
-                    const entitlementSchool = normalizeNum(m?.school ?? m?.school_id) || 0;
-                    const subscription = (m?.subscription_type || '').toLowerCase();
-                    const userSub = (subscriptionType || '').toLowerCase();
-
                     // Grade match
                     const mGrades = normalizeGrades(m.grade_ids ?? m.grade_id);
                     if (!mGrades.includes(Number(gradeId))) return false;
 
-                    // Subscription match (mirrors AssetPicker exactly)
+                    const entitlementSchool = normalizeNum(m?.school ?? m?.school_id) || 0;
+                    const subscription = (m?.subscription_type || '').toLowerCase();
+                    const userSub = subscriptionType.toLowerCase();
+
                     if (userSub === 'school') {
                         if (entitlementSchool <= 0) return false;
                         if (!(subscription === 'premium' || subscription === 'school' || subscription === '')) return false;
-                    } else if (userSub === 'all' || userSub === '') {
-                        if (entitlementSchool > 0) return false;
-                        if (subscription) return false;
-                    } else {
-                        if (subscription !== userSub) return false;
-                    }
-
-                    // School match (mirrors AssetPicker exactly)
-                    if (selectedSchoolIds.length > 0) {
+                        // Must match the specific school
                         if (!selectedSchoolIds.includes(entitlementSchool)) return false;
-                    } else if (entitlementSchool > 0) {
-                        return false;
+                    } else {
+                        // premium / ultra: must match subscription exactly, school_id must be 0
+                        if (subscription !== userSub) return false;
+                        if (entitlementSchool > 0) return false;
                     }
 
                     return true;
