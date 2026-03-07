@@ -16,6 +16,11 @@ import {
 } from '../services/api';
 import toast from 'react-hot-toast';
 
+const getYoutubeVideoId = (url) => {
+    const match = url?.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
+    return (match && match[2].length === 11) ? match[2] : null;
+};
+
 const EditCoursePage = () => {
     const navigate = useNavigate();
     const { id } = useParams();
@@ -264,6 +269,19 @@ const EditCoursePage = () => {
         (youtubeUrl || '').trim()
     );
 
+    const isStep2MandatoryFilled = items.length > 0 && items.every(item => {
+        const hasTitle = (item.title || '').trim().length > 0;
+        if (item.type === 'quiz') return hasTitle;
+        const hasYT = (item.youtube_url || '').trim().length > 0 && getYoutubeVideoId(item.youtube_url);
+        return hasTitle && hasYT;
+    });
+
+    const isStep3MandatoryFilled = Boolean(
+        selectedGradeIds.length > 0 &&
+        mappedSchools.length > 0 &&
+        selectedUserTypes.length > 0
+    );
+
     // Save course details (Step 1) — calls update_course
     const handleSaveCourseDetails = async () => {
         if (!(courseName || '').trim()) { toast.error('Course name is required.'); return; }
@@ -271,6 +289,10 @@ const EditCoursePage = () => {
         if (!(headerImage || '').trim()) { toast.error('Header image is required.'); return; }
         if (!(thumbnail || '').trim()) { toast.error('Thumbnail is required.'); return; }
         if (!(youtubeUrl || '').trim()) { toast.error('Video (YouTube URL) is required.'); return; }
+        if (!getYoutubeVideoId(youtubeUrl)) {
+            toast.error("Please enter a valid YouTube URL for the course.");
+            return;
+        }
 
         try {
             setLoading(true);
@@ -357,6 +379,20 @@ const EditCoursePage = () => {
 
     const handleSaveChapter = async () => {
         if (!activeItem || (activeItem.type !== 'chapter' && activeItem.type !== 'challenge' && activeItem.type !== 'goal')) return;
+
+        if (!activeItem.title?.trim()) {
+            toast.error("Chapter name is required.");
+            return;
+        }
+        if (!activeItem.youtube_url?.trim()) {
+            toast.error("YouTube URL is required.");
+            return;
+        }
+        if (!getYoutubeVideoId(activeItem.youtube_url)) {
+            toast.error("Please enter a valid YouTube URL.");
+            return;
+        }
+
         try {
             setLoading(true);
             await updateChapter(activeItem.id, { title: activeItem.title, body_content: activeItem.content, youtube_url: activeItem.youtube_url });
@@ -370,6 +406,12 @@ const EditCoursePage = () => {
 
     const handleSaveQuiz = async () => {
         if (!activeItem || activeItem.type !== 'quiz') return;
+
+        if (!activeItem.title?.trim()) {
+            toast.error("Quiz title is required.");
+            return;
+        }
+
         try {
             setLoading(true);
             await updateQuiz(activeItem.id, {
@@ -485,10 +527,7 @@ const EditCoursePage = () => {
         }
     };
 
-    const getYoutubeVideoId = (url) => {
-        const match = url?.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|\&v=)([^#\&\?]*).*/);
-        return (match && match[2].length === 11) ? match[2] : null;
-    };
+
 
     const videoId = getYoutubeVideoId(youtubeUrl);
 
@@ -529,12 +568,22 @@ const EditCoursePage = () => {
                         )}
                         <button
                             onClick={step === 1 ? handleSaveCourseDetails : step === 2 ? () => setStep(3) : handlePublish}
-                            disabled={loading || publishingLoading || (step === 1 && !isStep1MandatoryFilled)}
+                            disabled={
+                                loading ||
+                                publishingLoading ||
+                                (step === 1 && !isStep1MandatoryFilled) ||
+                                (step === 2 && !isStep2MandatoryFilled) ||
+                                (step === 3 && !isStep3MandatoryFilled)
+                            }
                             style={{
                                 padding: '10px 48px',
-                                background: (step === 1 && !isStep1MandatoryFilled) ? '#94a3b8' : '#2563eb',
+                                background: (
+                                    (step === 1 && !isStep1MandatoryFilled) ||
+                                    (step === 2 && !isStep2MandatoryFilled) ||
+                                    (step === 3 && !isStep3MandatoryFilled)
+                                ) ? '#94a3b8' : '#2563eb',
                                 color: 'white', border: 'none', borderRadius: '6px', fontWeight: '700', fontSize: '14px',
-                                cursor: loading || publishingLoading || (step === 1 && !isStep1MandatoryFilled) ? 'not-allowed' : 'pointer',
+                                cursor: (loading || publishingLoading || (step === 1 && !isStep1MandatoryFilled) || (step === 2 && !isStep2MandatoryFilled) || (step === 3 && !isStep3MandatoryFilled)) ? 'not-allowed' : 'pointer',
                                 opacity: loading || publishingLoading ? 0.7 : 1
                             }}
                         >
@@ -736,7 +785,15 @@ const EditCoursePage = () => {
                                                 {item.type === 'quiz' ? <Rocket size={16} color="#2563eb" /> : <FileText size={16} color="#64748b" />}
                                             </div>
                                             <div style={{ flex: 1, minWidth: 0 }}>
-                                                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b' }}>{index + 1}. {item.title || 'Untitled'}</div>
+                                                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    {index + 1}. {item.title || 'Untitled'}
+                                                    {!(
+                                                        (item.title || '').trim().length > 0 &&
+                                                        (item.type === 'quiz' ? true : ((item.youtube_url || '').trim().length > 0 && getYoutubeVideoId(item.youtube_url)))
+                                                    ) && (
+                                                            <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#ef4444', flexShrink: 0 }} title="Incomplete details"></div>
+                                                        )}
+                                                </div>
                                             </div>
                                             <div style={{ position: 'relative' }}>
                                                 <button onClick={(e) => { e.stopPropagation(); const composite = `${item.type}-${item.id}`; setOpenMenuId(openMenuId === composite ? null : composite); }} style={{ color: '#94a3b8', background: 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px' }}>
@@ -767,8 +824,27 @@ const EditCoursePage = () => {
                         <div style={{ flex: 1, background: '#f1f5f9', padding: '48px', display: 'flex', flexDirection: 'column', alignItems: 'center', overflowY: 'auto' }}>
                             {activeItem ? (
                                 <div style={{ width: '440px', maxWidth: '100%', background: '#ffffff', borderRadius: '12px', padding: '40px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '32px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
-                                        <input type="text" value={activeItem.title} onChange={(e) => updateActiveItem({ title: e.target.value })} placeholder="Untitled Item" style={{ flex: 1, fontSize: '28px', fontWeight: '700', color: '#1e293b', padding: '8px 0', border: 'none', borderBottom: '1px solid #e2e8f0', background: 'transparent', outline: 'none' }} />
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                                        <label style={{ fontSize: '13px', fontWeight: '700', color: '#64748b' }}>
+                                            {activeItem.type === 'quiz' ? 'Quiz Title*' : 'Chapter Name*'}
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={activeItem.title}
+                                            onChange={(e) => updateActiveItem({ title: e.target.value })}
+                                            placeholder={activeItem.type === 'quiz' ? "Enter quiz title*" : "Enter chapter name*"}
+                                            style={{
+                                                flex: 1,
+                                                fontSize: '16px',
+                                                fontWeight: '700',
+                                                color: '#1e293b',
+                                                padding: '8px 12px',
+                                                border: '1px solid #e2e8f0',
+                                                borderRadius: '8px',
+                                                background: 'white',
+                                                outline: 'none',
+                                            }}
+                                        />
                                     </div>
 
                                     {activeItem.type === 'quiz' ? (
@@ -953,7 +1029,19 @@ const EditCoursePage = () => {
                                 <div style={{ fontSize: '24px', fontWeight: '700', color: '#1e293b', display: 'flex', alignItems: 'baseline', gap: '8px' }}>
                                     Mapped <span style={{ fontSize: '18px', fontWeight: '600', color: '#64748b' }}>({mappedSchools.length})</span>
                                     <div style={{ flex: 1 }}></div>
-                                    <button onClick={handleApplyMapping} disabled={mappingLoading} style={{ padding: '8px 16px', background: (mappedSchools.length > 0 && !mappingLoading) ? '#2563eb' : '#bfdbfe', color: 'white', border: 'none', borderRadius: '6px', fontSize: '13px', fontWeight: '700', cursor: (mappedSchools.length > 0 && !mappingLoading) ? 'pointer' : 'default' }}>
+                                    <button
+                                        onClick={handleApplyMapping}
+                                        disabled={mappingLoading || !isStep3MandatoryFilled}
+                                        style={{
+                                            padding: '8px 16px',
+                                            background: (isStep3MandatoryFilled && !mappingLoading) ? '#2563eb' : '#bfdbfe',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '6px',
+                                            fontSize: '13px',
+                                            fontWeight: '700',
+                                            cursor: (isStep3MandatoryFilled && !mappingLoading) ? 'pointer' : 'not-allowed'
+                                        }}>
                                         {mappingLoading ? 'Processing...' : 'Apply Mapping'}
                                     </button>
                                 </div>

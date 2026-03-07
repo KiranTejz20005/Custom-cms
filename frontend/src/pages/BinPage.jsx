@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Layout from '../components/common/Layout';
-import { getBin, restoreCourse } from '../services/api';
-import { Trash2, RefreshCw, ChevronLeft, ChevronRight, Search, RotateCcw, ShieldAlert, Layers } from 'lucide-react';
+import AdminDeleteModal from '../components/common/AdminDeleteModal';
+import { getBin, restoreCourse, purgeCourse } from '../services/api';
+import { Trash2, RefreshCw, ChevronLeft, ChevronRight, Search, RotateCcw, ShieldAlert, Layers, XCircle } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 const BinPage = () => {
@@ -13,6 +14,8 @@ const BinPage = () => {
     const [page, setPage] = useState(1);
     const [limit] = useState(10);
     const [restoringId, setRestoringId] = useState(null);
+    const [purgingId, setPurgingId] = useState(null);
+    const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null, title: '' });
 
     const loadBin = async () => {
         try {
@@ -44,6 +47,30 @@ const BinPage = () => {
             toast.error("Failed to restore item.");
         } finally {
             setRestoringId(null);
+        }
+    };
+
+    const handlePermanentDelete = (item) => {
+        setDeleteModal({
+            isOpen: true,
+            id: item.id,
+            title: item.title || item.name || 'Untitled'
+        });
+    };
+
+    const confirmPermanentDelete = async () => {
+        if (!deleteModal.id) return;
+        setPurgingId(deleteModal.id);
+        try {
+            await purgeCourse(deleteModal.id);
+            toast.success(`"${deleteModal.title}" deleted permanently.`);
+            setItems(prev => prev.filter(item => item.id !== deleteModal.id));
+            setDeleteModal({ isOpen: false, id: null, title: '' });
+        } catch (err) {
+            console.error("Permanent delete failed", err);
+            toast.error("Failed to delete item permanently.");
+        } finally {
+            setPurgingId(null);
         }
     };
 
@@ -117,20 +144,36 @@ const BinPage = () => {
                                                 {item.deleted_at ? new Date(item.deleted_at).toLocaleDateString() : 'Recently'}
                                             </td>
                                             <td className="actions-cell">
-                                                <button
-                                                    className="restore-btn"
-                                                    onClick={() => handleRestore(item.id)}
-                                                    disabled={restoringId === item.id}
-                                                >
-                                                    {restoringId === item.id ? (
-                                                        <RefreshCw size={16} className="spinning" />
-                                                    ) : (
-                                                        <>
-                                                            <RotateCcw size={16} />
-                                                            <span>Restore</span>
-                                                        </>
-                                                    )}
-                                                </button>
+                                                <div className="action-buttons-group">
+                                                    <button
+                                                        className="restore-btn"
+                                                        onClick={() => handleRestore(item.id)}
+                                                        disabled={restoringId === item.id || purgingId === item.id}
+                                                    >
+                                                        {restoringId === item.id ? (
+                                                            <RefreshCw size={16} className="spinning" />
+                                                        ) : (
+                                                            <>
+                                                                <RotateCcw size={16} />
+                                                                <span>Restore</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        className="purge-btn"
+                                                        onClick={() => handlePermanentDelete(item)}
+                                                        disabled={restoringId === item.id || purgingId === item.id}
+                                                    >
+                                                        {purgingId === item.id ? (
+                                                            <RefreshCw size={16} className="spinning" />
+                                                        ) : (
+                                                            <>
+                                                                <Trash2 size={16} />
+                                                                <span>Delete</span>
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
@@ -163,6 +206,15 @@ const BinPage = () => {
                     )}
                 </div>
             </div>
+
+            <AdminDeleteModal
+                isOpen={deleteModal.isOpen}
+                onClose={() => setDeleteModal({ isOpen: false, id: null, title: '' })}
+                onConfirm={confirmPermanentDelete}
+                itemName={deleteModal.title}
+                title="Permanent Deletion"
+                actionText="Yes, delete permanently"
+            />
 
             <style dangerouslySetInnerHTML={{
                 __html: `
@@ -284,6 +336,12 @@ const BinPage = () => {
                     text-align: right;
                 }
 
+                .action-buttons-group {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 12px;
+                }
+
                 .restore-btn {
                     display: inline-flex;
                     align-items: center;
@@ -304,7 +362,27 @@ const BinPage = () => {
                     color: white;
                 }
 
-                .restore-btn:disabled {
+                .purge-btn {
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 8px;
+                    padding: 8px 16px;
+                    background: #fef2f2;
+                    color: #ef4444;
+                    border: none;
+                    border-radius: 8px;
+                    font-weight: 700;
+                    font-size: 13px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+
+                .purge-btn:hover:not(:disabled) {
+                    background: #ef4444;
+                    color: white;
+                }
+
+                .restore-btn:disabled, .purge-btn:disabled {
                     opacity: 0.6;
                     cursor: not-allowed;
                 }

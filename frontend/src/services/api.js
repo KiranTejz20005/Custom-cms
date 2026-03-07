@@ -60,6 +60,7 @@ export const updateCourse = (id, data) => client.patch(`${config.xano.coursesBas
 export const deleteCourse = (id) => client.delete(`${config.xano.coursesBaseUrl}/delete_course/${id}`);
 export const getBin = () => client.get(courses.getDeletedCourses);
 export const restoreCourse = (id) => client.patch(courses.restoreCourse(id));
+export const purgeCourse = (id) => client.delete(`${config.xano.coursesBaseUrl}/purge_course/${id}`);
 
 // Default export as courses base (legacy compatibility)
 export default {

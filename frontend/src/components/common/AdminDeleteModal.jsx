@@ -3,7 +3,7 @@ import { X, AlertTriangle, Trash2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import config from '../../config/config';
 
-const AdminDeleteModal = ({ isOpen, onClose, onConfirm, itemName, type = 'Course' }) => {
+const AdminDeleteModal = ({ isOpen, onClose, onConfirm, itemName, type = 'Course', title, actionText }) => {
     const [passkey, setPasskey] = useState('');
     const [error, setError] = useState('');
 
@@ -34,7 +34,7 @@ const AdminDeleteModal = ({ isOpen, onClose, onConfirm, itemName, type = 'Course
                 </div>
                 <div className="admin-modal-right">
                     <div className="admin-modal-header">
-                        <h3>Move {type} to Bin</h3>
+                        <h3>{title || `Move ${type} to Bin`}</h3>
                         <button className="admin-close-btn" onClick={onClose}>
                             <X size={24} />
                         </button>
@@ -42,10 +42,11 @@ const AdminDeleteModal = ({ isOpen, onClose, onConfirm, itemName, type = 'Course
 
                     <div className="admin-modal-content">
                         <p className="main-text">
-                            Are you sure you want to move <strong>"{itemName}"</strong> to Bin.
+                            {actionText ? `Are you sure you want to permanently delete ` : `Are you sure you want to move `}
+                            <strong>"{itemName}"</strong> {actionText ? '?' : 'to Bin.'}
                         </p>
                         <p className="sub-text">
-                            This will temporarily "UN-map" {type}, you can undo this action from "Bin"
+                            {actionText ? "This action cannot be undone. Please be certain." : `This will temporarily "UN-map" ${type}, you can undo this action from "Bin"`}
                         </p>
 
                         <div className={`passkey-input-group ${error ? 'has-error' : ''}`}>
@@ -70,8 +71,7 @@ const AdminDeleteModal = ({ isOpen, onClose, onConfirm, itemName, type = 'Course
                                 Discard
                             </button>
                             <button className="confirm-btn" onClick={handleConfirm}>
-                                <Trash2 size={16} />
-                                Yes, move to Bin
+                                {actionText || `Yes, move to Bin`}
                             </button>
                         </div>
                     </div>

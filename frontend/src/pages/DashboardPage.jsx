@@ -353,9 +353,8 @@ const DashboardPage = () => {
 
     const handleSearch = (e) => {
         e.preventDefault();
-        if (hasSubmitted) {
-            loadData();
-        }
+        setHasSubmitted(true);
+        loadData();
     };
 
     const isPremiumOrUltra = String(filters.userType || '').toLowerCase() === 'premium' || String(filters.userType || '').toLowerCase() === 'ultra';
@@ -833,15 +832,16 @@ const DashboardPage = () => {
                         <Search size={18} style={{ position: 'absolute', left: '16px', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', zIndex: 1 }} />
                         <input
                             type="text"
-                            placeholder="Search comes here"
+                            placeholder="Search by course title..."
                             value={filters.search}
                             onChange={(e) => setFilters(prev => ({ ...prev, search: e.target.value }))}
                             onKeyUp={() => {
-                                if (hasSubmitted && data.length > 0) {
+                                if (filters.search.length > 2) {
+                                    setHasSubmitted(true);
                                     loadData();
                                 }
                             }}
-                            disabled={!hasSubmitted || data.length === 0}
+                            disabled={loading}
                             style={{
                                 width: '100%',
                                 padding: '16px 16px 16px 48px',
