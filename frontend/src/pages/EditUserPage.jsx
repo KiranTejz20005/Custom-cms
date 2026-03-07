@@ -291,12 +291,16 @@ const EditUserPage = () => {
 
     const validate = () => {
         const errs = {};
+        if (!surname.trim()) errs.surname = 'Surname is required';
         if (!firstName.trim()) errs.firstName = 'First Name is required';
-        if (!mobile.trim()) errs.mobile = 'Phone number is required';
+        if (!lastName.trim()) errs.lastName = 'Last Name is required';
+        if (!mobile.trim()) errs.mobile = 'Mobile number is required';
+        else if (!/^\d{10}$/.test(mobile)) errs.mobile = 'Enter a valid 10-digit mobile number';
         if (!email.trim()) errs.email = 'Email is required';
         else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = 'Invalid email format';
         if (!subscriptionType) errs.subscriptionType = 'Subscription Type is required';
         if (!gradeId) errs.gradeId = 'Grade is required';
+        if (subscriptionType === 'school' && !schoolId) errs.schoolId = 'Please select a school';
         setErrors(errs);
         return Object.keys(errs).length === 0;
     };
@@ -315,7 +319,7 @@ const EditUserPage = () => {
             const duplicate = allUsers.find(u =>
                 String(u.id) !== String(id) && (
                     u.email?.toLowerCase() === email.toLowerCase() ||
-                    (mobile && u.mobile_ && u.mobile_ === mobile)
+                    (mobile && (u.mobile_ === mobile || u.mobile === mobile))
                 )
             );
 
@@ -345,8 +349,9 @@ const EditUserPage = () => {
             };
 
             await updateStudent(body);
-            showToast('User details updated!', 'success');
-            setStep(2);
+            // setStep(2); // mapping disabled for now
+            showToast('User updated successfully!', 'success');
+            setTimeout(() => navigate('/admin/config/users'), 2000);
         } catch (error) {
             showToast(error?.message || 'Failed to update user', 'error');
         } finally {
@@ -379,8 +384,10 @@ const EditUserPage = () => {
                             <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', borderBottom: '1px solid #e5e7eb', paddingBottom: '16px', marginBottom: '24px' }}>
                                 <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '16px', pointerEvents: 'none' }}>
                                     <span style={{ color: '#2563eb', fontWeight: '700', fontSize: '15px' }}>Student Details</span>
+                                    {/* MAPPING DISABLED FOR NOW
                                     <span style={{ color: '#9ca3af', fontSize: '18px' }}>→</span>
                                     <span style={{ color: '#9ca3af', fontWeight: '500', fontSize: '15px' }}>Map &amp; Publish</span>
+                                    */}
                                 </div>
                                 <div style={{ display: 'flex', gap: '8px', position: 'relative', zIndex: 10 }}>
                                     <button
@@ -436,8 +443,9 @@ const EditUserPage = () => {
                                 <div className="cu-form-col">
                                     <div className="cu-name-row" style={{ marginBottom: 20 }}>
                                         <div>
-                                            <label className="cu-label">Surname <span style={{ color: '#9ca3af', fontSize: '12px', fontWeight: '400' }}>(Optional)</span></label>
-                                            <input className="cu-input" value={surname} onChange={e => setSurname(e.target.value)} />
+                                            <label className="cu-label">Surname*</label>
+                                            <input className={`cu-input ${errors.surname ? 'cu-input-err' : ''}`} value={surname} onChange={e => setSurname(e.target.value)} />
+                                            {errors.surname && <span className="cu-err">{errors.surname}</span>}
                                         </div>
                                         <div>
                                             <label className="cu-label">First Name*</label>
@@ -445,14 +453,25 @@ const EditUserPage = () => {
                                             {errors.firstName && <span className="cu-err">{errors.firstName}</span>}
                                         </div>
                                         <div>
-                                            <label className="cu-label">Last Name <span style={{ color: '#9ca3af', fontSize: '12px', fontWeight: '400' }}>(Optional)</span></label>
-                                            <input className="cu-input" value={lastName} onChange={e => setLastName(e.target.value)} />
+                                            <label className="cu-label">Last Name*</label>
+                                            <input className={`cu-input ${errors.lastName ? 'cu-input-err' : ''}`} value={lastName} onChange={e => setLastName(e.target.value)} />
+                                            {errors.lastName && <span className="cu-err">{errors.lastName}</span>}
                                         </div>
                                     </div>
 
                                     <div style={{ marginBottom: 20 }}>
                                         <label className="cu-label">Mobile*</label>
-                                        <input className={`cu-input ${errors.mobile ? 'cu-input-err' : ''}`} value={mobile} onChange={e => setMobile(e.target.value)} />
+                                        <input
+                                            className={`cu-input ${errors.mobile ? 'cu-input-err' : ''}`}
+                                            value={mobile}
+                                            onChange={e => {
+                                                const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                                                setMobile(val);
+                                                setErrors(prev => ({ ...prev, mobile: '' }));
+                                            }}
+                                            placeholder="10-digit mobile number"
+                                            maxLength={10}
+                                        />
                                         {errors.mobile && <span className="cu-err">{errors.mobile}</span>}
                                     </div>
 
