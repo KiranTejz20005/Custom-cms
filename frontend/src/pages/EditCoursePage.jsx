@@ -673,11 +673,6 @@ const EditCoursePage = () => {
                                 <div style={{ width: '440px', maxWidth: '100%', background: '#ffffff', borderRadius: '12px', padding: '40px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', display: 'flex', flexDirection: 'column', gap: '32px' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px' }}>
                                         <input type="text" value={activeItem.title} onChange={(e) => updateActiveItem({ title: e.target.value })} placeholder="Untitled Item" style={{ flex: 1, fontSize: '28px', fontWeight: '700', color: '#1e293b', padding: '8px 0', border: 'none', borderBottom: '1px solid #e2e8f0', background: 'transparent', outline: 'none' }} />
-                                        {(activeItem.type === 'chapter' || activeItem.type === 'challenge' || activeItem.type === 'goal') && (
-                                            <button onClick={handleSaveChapter} disabled={loading} style={{ flexShrink: 0, background: '#2563eb', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '8px', fontSize: '14px', fontWeight: '700', cursor: 'pointer' }}>
-                                                {loading ? 'Saving...' : 'Save Chapter'}
-                                            </button>
-                                        )}
                                     </div>
 
                                     {activeItem.type === 'quiz' ? (

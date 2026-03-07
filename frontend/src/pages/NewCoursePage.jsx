@@ -1366,15 +1366,6 @@ const NewCoursePage = () => {
                                                     outline: 'none',
                                                 }}
                                             />
-                                            {(activeItem.type === 'chapter' || activeItem.type === 'challenge' || activeItem.type === 'goal') && (
-                                                <button
-                                                    onClick={handleSaveChapter}
-                                                    disabled={loading}
-                                                    style={{ flexShrink: 0, background: '#2563eb', color: 'white', border: 'none', padding: '10px 24px', borderRadius: '8px', fontSize: '14px', fontWeight: '700', cursor: 'pointer', opacity: loading ? 0.7 : 1 }}
-                                                >
-                                                    {loading ? 'Saving...' : 'Save Chapter'}
-                                                </button>
-                                            )}
                                         </div>
 
                                         {activeItem.type === 'quiz' ? (
